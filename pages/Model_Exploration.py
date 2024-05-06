@@ -1,19 +1,22 @@
-import numpy as np                
-import pandas as pd               
+import numpy as np                    
 from sklearn.model_selection import train_test_split
-import streamlit as st             
+import streamlit as st                  
 import random
-import itertools
+from helper_functions import fetch_dataset, set_pos_neg_reviews
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import math
+
+# set seed=10 to produce consistent results
+random.seed(10)
+
 #############################################
 
 st.markdown("# Practical Applications of Machine Learning (PAML)")
 
 #############################################
 
-st.markdown("### Homework 2 - Predicting Housing Prices Using Regression")
+st.markdown(
+    "### Homework 3 - Predicting Product Review Sentiment Using Classification")
 
 #############################################
 
@@ -21,18 +24,21 @@ st.title('Train Model')
 
 #############################################
 
-# Checkpoint 1
-def split_dataset(X, y, number,random_state=45):
+# Checkpoint 4
+def split_dataset(df, number, target, feature_encoding, random_state=42):
     """
-    This function splits the dataset into the train data and the test data using train_test_split
+    This function splits the dataset into the training and test sets.
 
-    Input: 
+    Input:
         - X: training features
         - y: training targets
         - number: the ratio of test samples
-    Output: 
-        - X_train: training features
-        - X_val: test/validation features
+        - target: article feature name 'rating'
+        - feature_encoding: (string) 'Word Count' or 'TF-IDF' encoding
+        - random_state: determines random number generation for centroid initialization
+    Output:
+        - X_train_sentiment: training features (word encoded)
+        - X_val_sentiment: test/validation features (word encoded)
         - y_train: training targets
         - y_val: test/validation targets
     """
@@ -40,269 +46,253 @@ def split_dataset(X, y, number,random_state=45):
     X_val = []
     y_train = []
     y_val = []
-    number = number/100
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=number, random_state=random_state)
-    return X_train, X_val, y_train, y_val
+    X_train_sentiment, X_val_sentiment = [], []
+    
+    # Add code here
+    X, y = df.loc[:, ~df.columns.isin([target])], df.loc[:, df.columns.isin([target])]
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    if('Word Count' in feature_encoding):
+        X_train_sentiment = X_train.loc[:, X_train.columns.str.startswith('word_count_')]
+        X_val_sentiment = X_val.loc[:, X_val.columns.str.startswith('word_count_')]
+    if('TF-IDF' in feature_encoding):
+        X_train_sentiment = X_train.loc[:, X_train.columns.str.startswith('tf_idf_word_count_')]
+        X_val_sentiment = X_val.loc[:, X_val.columns.str.startswith('tf_idf_word_count_')]
+    return X_train_sentiment, X_val_sentiment, y_train, y_val
 
-class LinearRegression(object) : 
+class LogisticRegression(object):
     def __init__(self, learning_rate=0.001, num_iterations=500): 
         self.learning_rate = learning_rate 
         self.num_iterations = num_iterations 
-        self.cost_history=[]
-
-    # Checkpoint 2: Hypothetical function h(x) 
-    def predict(self, X): 
-        '''
-        Make a prediction using coefficients self.W and input features X
-        Y=X*W
-        
-        Input: X is matrix of column-wise features
-        Output: prediction of house price
-        '''
-        prediction=None
-        num_examples,_ = X.shape
-        X_transform = np.append(np.ones((num_examples, 1)), X, axis=1)
-        self.W = self.W.reshape(-1,1)
-        prediction = X_transform.dot(self.W)
-        return prediction
-
-    # Checkpoint 3: Update weights in gradient descent 
-    def update_weights(self):     
-        '''
-        Update weights of regression model by computing the 
-        derivative of the RSS cost function with respect to weights
-        
-        Input: None
-        Output: None
-        '''        
-        
-        X_transform = np.append(np.ones((self.num_examples, 1)), self.X, axis=1)
-        Y_pred = self.predict(self.X)
-        dW = - (2 * (X_transform.T).dot(self.Y - Y_pred))/self.num_examples
-        cost = np.sqrt(np.square(Y_pred - self.Y).mean())
-        self.cost_history.append(cost)
-        self.W = self.W - self.learning_rate * dW 
-        return self
+        self.likelihood_history=[]
     
-    # Checkpoint 4: Model training 
-    def fit(self, X, Y): 
+    # Checkpoint 5
+    def predict_probability(self, X):
         '''
-        Use gradient descent to update the weights for self.num_iterations
+        Produces probabilistic estimate for P(y_i = +1 | x_i, w)
+            Estimate ranges between 0 and 1.
+        Input:
+            - X: Input features
+            - W: weights/coefficients of logistic regression model
+            - b: bias or y-intercept of logistic regression classifier
+        Output:
+            - y_pred: probability of positive product review
+        '''
+        y_pred=None
+        # Take dot product of feature_matrix and coefficients  
+        # Add code here
+        #num_features, num_examples = X.shape
+        score = np.dot(X, self.W) +self.b
+        # Add code here   
+        y_pred = 1. / (1.+np.exp(-score))    
+        return y_pred
+    
+    # Checkpoint 6
+    def compute_avg_log_likelihood(self, X, Y, W):
+        '''
+        Compute the average log-likelihood of logistic regression coefficients
+
         Input
-            - X: Input features X
-            - Y: True values of housing prices
+            - X: subset of features in dataset
+            - Y: true sentiment of inputs
+            - W: logistic regression weights
+        Output
+            - lp: log likelihood estimation
+        '''
+        lp=None
+        # Add code here
+        indicator = (Y==+1)
+        scores = np.dot(X, W)
+        logexp = np.log(1. + np.exp(-scores))
+        mask = np.isinf(logexp)
+        logexp[mask] = -scores[mask]
+        lp = np.sum((indicator-1)*scores - logexp)/len(X)
+        return lp
+    
+    # Checkpoint 7
+    def update_weights(self):      
+        '''
+        Compute the logistic regression derivative using 
+        gradient ascent and update weights self.W
+
+        Inputs: None
         Output: None
         '''
-        self.X=X
-        self.Y=Y
-        self.num_examples, self.num_features = self.X.shape
-        W = np.zeros(self.num_features + 1) # +1 for const offset
-        self.W = W
-        self.X = self.normalize(self.X)
-        for _ in range(self.num_iterations): 
-            self.update_weights() 
+        num_examples, num_features = self.X.shape
+        y_pred = self.predict(self.X)
+        dW = self.X.T.dot(self.Y-y_pred) / num_examples 
+        db = np.sum(self.Y-y_pred) / num_examples 
+        self.b = self.b + self.learning_rate * db
+        self.W = self.W + self.learning_rate * dW
+        #for i in range(len(self.W)):
+        #    y_pred = 1 / (1 + np.exp(-(self.X[:,i].dot(self.W[i]) + self.b))) 
+        log_likelihood = self.compute_avg_log_likelihood(self.X, self.Y, self.W)
+        self.likelihood_history.append(log_likelihood)
         return self
-         
     
-    # Helper function
-    def normalize(self, X):
+    # Checkpoint 8
+    def predict(self, X):
         '''
-        Standardize features X by column
+        Hypothetical function  h(x)
+        Input: 
+            - X: Input features
+            - W: weights/coefficients of logistic regression model
+            - b: bias or y-intercept of logistic regression classifier
+        Output:
+            - Y: list of predicted classes 
+        '''
+        y_pred=0
+        # Add code here
+        Z = 1 / (1 + np.exp(- (self.X.dot(self.W) + self.b)))
+        y_pred = [-1 if z <= 0.5 else +1 for z in Z]
+        return y_pred 
+    
+    # Checkpoint 9
+    def fit(self, X, Y):   
+        '''
+        Run gradient ascent to fit features to data using logistic regression 
+        Input: 
+            - X: Input features
+            - Y: list of actual product sentiment classes 
+            - num_iterations: # of iterations to update weights using gradient ascent
+            - learning_rate: learning rate
+        Output: None
+        '''
+        # Add code here
+        self.X = X
+        self.Y = Y
+        num_examples, num_features = self.X.shape    
+        W = np.zeros(num_features)
+        self.W = W
+        b = 0
+        self.b = b
+        for _ in range(self.num_iterations):          
+            self.update_weights()   
+        return self
 
-        Input: X is input features (column-wise)
-        Output: Standardized features by column
-        '''
-        X_normalized=X
-        try:
-            means = np.mean(X, axis=0) #columnwise mean and std
-            stds = np.std(X, axis=0)+1e-7
-            X_normalized = (X-means)/(stds)
-        except ValueError as err:
-            st.write({str(err)})
-        return X_normalized
-    
-    # Checkpoint 5: Return regression coefficients
-    def get_weights(self, model_name, features):
+    # Checkpoint 10
+    def get_weights(self, model_name):
         '''
         This function prints the coefficients of the trained models
         
         Input:
-            - 
+            - model_name (list of strings): list of model names including: 'Logistic Regression', 'Stochastic Gradient Ascent with Logistic Regression' 
         Output:
             - out_dict: a dicionary contains the coefficients of the selected models, with the following keys:
-            - 'Multiple Linear Regression'
-            - 'Polynomial Regression'
-            - 'Ridge Regression'
-            - 'Lasso Regression'
+            - 'Logistic Regression'
+            - 'Stochastic Gradient Ascent with Logistic Regression'
         '''
-        out_dict = {'Multiple Linear Regression': [],
-                'Polynomial Regression': [],
-                'Ridge Regression': []}
+        out_dict = {'Logistic Regression': [],
+                    'Stochastic Gradient Ascent with Logistic Regression': []}
+        
+        # Add code here
         weights = self.fit(self.X, self.Y)
-        weights = weights.W
-        if (type(self).__name__) == 'LinearRegression':
-            out_dict['Multiple Linear Regression'] = weights
-        if (type(self).__name__) == 'PolynomailRegression':
-            out_dict['Polynomial Regression'] = weights
-        if (type(self).__name__) == 'RidgeRegression':
-            out_dict['Ridge Regression'] = weights
+        if model_name == 'Logistic Regression':
+            out_dict['Logistic Regression'] = weights
+        if model_name == 'Stochastic Gradient Ascent with Logistic Regression':
+            out_dict['Stochastic Gradient Ascent with Logistic Regression'] = weights
         return out_dict
 
-# Multivariate Polynomial Regression
-class PolynomailRegression(LinearRegression):
-    def __init__(self, degree, learning_rate, num_iterations):
-        self.degree = degree
+class StochasticLogisticRegression(LogisticRegression):
+    def __init__(self, num_iterations, learning_rate, batch_size): 
+        self.likelihood_history=[]
+        self.batch_size=batch_size
 
         # invoking the __init__ of the parent class
-        LinearRegression.__init__(self, learning_rate, num_iterations)
+        LogisticRegression.__init__(self, learning_rate, num_iterations)
 
-    # Helper function
-    def transform(self, X):
-        '''
-        Converts a matrix of features for polynomial  h( x ) = w0 * x^0 + w1 * x^1 + w2 * x^2 + ........+ wn * x^n
-
-        Input:
-            - 
-        Output:
-            -
-        '''
-        try:
-            # coverting 1D to 2D
-            if X.ndim==1:
-                X = X[:,np.newaxis]
-            num_examples, num_features = X.shape
-            features = [np.ones((num_examples, 1))] # for bias, the first column
-            # initialize X_transform
-            for j in range(1, self.degree + 1):
-                # For better understanding see doc: https://docs.python.org/3/library/itertools.html#itertools.combinations_with_replacement
-                for combinations in itertools.combinations_with_replacement(range(num_features), j): # this will give us the combination of features
-                    feature = np.ones(num_examples)
-                    for each_combination in combinations:
-                        feature = feature * X[:,each_combination]
-                    features.append(feature[:, np.newaxis]) # collecting list of arrays each array is the feature
-            # concating the list of feature in each column them
-            X_transform = np.concatenate(features, axis=1)
-        except ValueError as err:
-            st.write({str(err)})
-        return X_transform
-    
-    # Checkpoint 6: Model training
+    # Checkpoint 11
     def fit(self, X, Y):
         '''
-        Use gradient descent to update the weights for self.num_iterations
+        Run mini-batch stochastic gradient ascent to fit features to data using logistic regression 
 
-        Input:
-            - X: Input features X
-            - Y: True values of housing prices
+        Input
+            - X: input features
+            - Y: target variable (product sentiment)
         Output: None
         '''
-        self.X=X
-        self.Y=Y
-        self.num_examples, self.num_features = self.X.shape
-        W = np.zeros(math.comb(self.num_features+self.degree,self.degree))
+        # Add code here
+        permutation = np.random.permutation(len(X))
+        self.X = X[permutation,:]
+        self.Y = Y[permutation]
+        self.num_features, self.num_examples = self.X.shape    
+        W = np.zeros(self.num_examples)
         self.W = W
-        X_TC = self.transform(self.X)
-        X_TC = self.normalize(X_TC)
-        for _ in range(self.num_iterations): 
-            Y_pred = self.predict(self.X)
-            dW = -(2 * (X_TC.T).dot(self.Y - Y_pred))/self.num_examples
-            cost = np.sqrt(np.sum(np.power(self.Y-Y_pred,2))/len(Y_pred)) 
-            self.cost_history.append(cost)
-            self.W = self.W - self.learning_rate * dW 
-            return self
-        return self
-        
-    
-    # Checkpoint 7: Make a prediction with Polynomial Regression model
-    def predict(self, X):
-        '''
-        Make a prediction using coefficients self.W and input features X
-        Y=X*W
-        
-        Input: X is matrix of column-wise features
-        Output: prediction of house price
-        '''
-        prediction=None
-        X_TC = self.transform(X)
-        X_TC = self.normalize(X_TC)
-        self.W = self.W.reshape(-1,1)
-        prediction = X_TC.dot(self.W)
-        return prediction
-
-# Ridge Regression 
-class RidgeRegression(LinearRegression): 
-    def __init__(self, learning_rate, num_iterations, l2_penalty): 
-        self.l2_penalty = l2_penalty 
-
-        # invoking the __init__ of the parent class
-        LinearRegression.__init__(self, learning_rate, num_iterations)
-
-    # Checkpoint 8: Update weights in gradient descent 
-    def update_weights(self):      
-        '''
-        Update weights of regression model by computing the 
-        derivative of the RSS + l2_penalty*w cost function with respect to weights
-
-        Input: None
-        Output: None
-        '''
-        X_transform = np.append(np.ones((self.num_examples, 1)), self.X, axis=1)
-        Y_pred = self.predict(self.X)
-        dW = - (2 * (X_transform.T).dot(self.Y - Y_pred) +  2 * self.l2_penalty * self.W)/self.num_examples
-        cost = np.sqrt(np.square(Y_pred - self.Y).mean())
-        self.cost_history.append(cost)
-        self.W = self.W - self.learning_rate * dW 
+        b = 0
+        self.b = b
+        likelihood_history = []
+        i = 0 
+        self.likelihood_history = likelihood_history 
+        for itr in range(self.num_iterations):
+            predictions = self.predict_probability(self.X[i:i+self.batch_size,:])
+            indicator = (self.Y[i:i+self.batch_size]==+1)
+            errors = indicator - predictions
+            for j in range(len(self.W)):
+                dW = errors.dot(self.X[i:i+self.batch_size,j].T)
+                self.W[j] += self.learning_rate * dW 
+            lp = self.compute_avg_log_likelihood(self.X[i:i+self.batch_size,:], Y[i:i+self.batch_size],
+                                        self.W)
+            self.likelihood_history.append(lp)
+            i += self.batch_size
+            if i+self.batch_size > len(self.X):
+                permutation = np.random.permutation(len(self.X))
+                self.X = self.X[permutation,:]
+                self.Y = self.Y[permutation]
+                i = 0
+        # Learning rate schedule
+            self.learning_rate=self.learning_rate/1.02
         return self
 
-# Helper functions
-def load_dataset(filepath):
-    '''
-    This function uses the filepath (string) a .csv file locally on a computer 
-    to import a dataset with pandas read_csv() function. Then, store the 
-    dataset in session_state.
-
-    Input: data is the filename or path to file (string)
-    Output: pandas dataframe df
-    '''
-    try:
-        data = pd.read_csv(filepath)
-        st.session_state['house_df'] = data
-    except ValueError as err:
-            st.write({str(err)})
-    return data
-
-random.seed(10)
 ###################### FETCH DATASET #######################
 df = None
-filepath = st.file_uploader('Upload a Dataset', type=['csv', 'txt'])
-if(filepath):
-    df = load_dataset(filepath)
-
-if('house_df' in st.session_state):
-    df = st.session_state['house_df']
-
-###################### DRIVER CODE #######################
+df = fetch_dataset()
 
 if df is not None:
+
     # Display dataframe as table
-    st.dataframe(df.describe())
+    st.dataframe(df)
+
+    # Select positive and negative ratings
+    pos_neg_select = st.slider(
+        'Select a range of ratings for negative reviews',
+        1, 5, 3,
+        key='pos_neg_selectbox')
+
+    if (pos_neg_select and st.button('Set negative sentiment upper bound')):
+        df = set_pos_neg_reviews(df, pos_neg_select)
+
+        st.write('You selected ratings positive rating greater than {}'.format(
+            pos_neg_select))
 
     # Select variable to predict
     feature_predict_select = st.selectbox(
         label='Select variable to predict',
-        options=list(df.select_dtypes(include='number').columns),
+        index=df.columns.get_loc(
+            'sentiment') if 'sentiment' in df.columns else 0,
+        options=df.columns,
         key='feature_selectbox',
-        index=8
     )
 
     st.session_state['target'] = feature_predict_select
 
+    word_count_encoder_options=[]
+    word_count_data = df.loc[:, df.columns.str.startswith('word_count_')]
+    if(len(word_count_data)):
+        word_count_encoder_options.append('Word Count')
+
+    tfidf_word_count_data = df.loc[:, df.columns.str.startswith('tfidf_word_count_')]
+    if(len(tfidf_word_count_data)):
+        word_count_encoder_options.append('TF-IDF')
+    
+    if ('word_encoder' in st.session_state):
+        if (st.session_state['word_encoder'] is not None):
+            st.write('Restoring selected encoded features {}'.format(
+                word_count_encoder_options))
+
     # Select input features
-    feature_input_select = st.multiselect(
-        label='Select features for regression input',
-        options=[f for f in list(df.select_dtypes(
-            include='number').columns) if f != feature_predict_select],
-        key='feature_multiselect'
+    feature_input_select = st.selectbox(
+        label='Select word encoder for classification input',
+        options=word_count_encoder_options,
+        key='feature_select'
     )
 
     st.session_state['feature'] = feature_input_select
@@ -310,288 +300,187 @@ if df is not None:
     st.write('You selected input {} and output {}'.format(
         feature_input_select, feature_predict_select))
 
-    df = df.dropna()
-    X = df.loc[:, df.columns.isin(feature_input_select)]
-    Y = df.loc[:, df.columns.isin([feature_predict_select])]
-
-    # Split train/test
+    # Task 4: Split train/test
     st.markdown('## Split dataset into Train/Test sets')
     st.markdown(
         '### Enter the percentage of test data to use for training the model')
-    split_number = st.number_input(
+    number = st.number_input(
         label='Enter size of test set (X%)', min_value=0, max_value=100, value=30, step=1)
 
+    X_train, X_val, y_train, y_val = [], [], [], []
     # Compute the percentage of test and training data
-    X_train_df, X_val_df, y_train_df, y_val_df = split_dataset(X, Y, split_number)
-    st.session_state['X_train_df'] = X_train_df
-    st.session_state['X_val_df'] = X_val_df
-    st.session_state['y_train_df'] = y_train_df
-    st.session_state['y_val_df'] = y_val_df
+    if (feature_predict_select in df.columns):
+        X_train, X_val, y_train, y_val = split_dataset(
+            df, number, feature_predict_select, feature_input_select)
 
-    # Convert to numpy arrays
-    X = np.asarray(X.values.tolist()) 
-    Y = np.asarray(Y.values.tolist()) 
-    X_train, X_val, y_train, y_val = split_dataset(X, Y, split_number)
-    train_percentage = (len(X_train) / (len(X_train)+len(y_val)))*100
-    test_percentage = (len(X_val)) / (len(X_train)+len(y_val))*100
+    classification_methods_options = ['Logistic Regression',
+                                      'Stochastic Gradient Ascent with Logistic Regression']
 
-    st.markdown('Training dataset ({1:.2f}%): {0:.2f}'.format(len(X_train),train_percentage))
-    st.markdown('Test dataset ({1:.2f}%): {0:.2f}'.format(len(X_val),test_percentage))
-    st.markdown('Total number of observations: {0:.2f}'.format(len(X_train)+len(y_val)))
-    train_percentage = (len(X_train)+len(y_train) /
-                        (len(X_train)+len(X_val)+len(y_train)+len(y_val)))*100
-    test_percentage = ((len(X_val)+len(y_val)) /
-                        (len(X_train)+len(X_val)+len(y_train)+len(y_val)))*100
+    trained_models = [
+        model for model in classification_methods_options if model in st.session_state]
 
-    regression_methods_options = ['Multiple Linear Regression',
-                                  'Polynomial Regression', 
-                                  'Ridge Regression']
+    st.session_state['trained_models'] = trained_models
+    
     # Collect ML Models of interests
-    regression_model_select = st.multiselect(
+    classification_model_select = st.multiselect(
         label='Select regression model for prediction',
-        options=regression_methods_options,
+        options=classification_methods_options,
     )
     st.write('You selected the follow models: {}'.format(
-        regression_model_select))
+        classification_model_select))
 
-    # Multiple Linear Regression
-    if (regression_methods_options[0] in regression_model_select):
-        st.markdown('#### ' + regression_methods_options[0])
+    # Add parameter options to each regression method
 
-        # Add parameter options to each regression method
-        learning_rate_input = st.text_input(
-            label='Input learning rate 👇',
-            value='0.4',
-            key='mr_alphas_textinput'
-        )
-        st.write('You select the following alpha value(s): {}'.format(learning_rate_input))
+    # Task 5: Logistic Regression
+    if (classification_methods_options[0] in classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('#### ' + classification_methods_options[0])
 
-        num_iterations_input = st.text_input(
-            label='Enter the number of iterations to run Gradient Descent (seperate with commas)👇',
-            value='200',
-            key='mr_iter_textinput'
-        )
-        st.write('You select the following number of iteration value(s): {}'.format(num_iterations_input))
+        lg_col1, lg_col2 = st.columns(2)
 
-        multiple_reg_params = {
-            'num_iterations': [float(val) for val in num_iterations_input.split(',')],
-            'alpha': [float(val) for val in learning_rate_input.split(',')]
+        with (lg_col1):
+            lg_learning_rate_input = st.text_input(
+                label='Input learning rate 👇',
+                value='0.0001',
+                key='lg_learning_rate_textinput'
+            )
+            st.write('You select the following learning rate value(s): {}'.format(lg_learning_rate_input))
+
+        with (lg_col2):
+            # Maximum iterations to run the LG until convergence
+            lg_num_iterations = st.number_input(
+                label='Enter the number of maximum iterations on training data',
+                min_value=1,
+                max_value=5000,
+                value=500,
+                step=100,
+                key='lg_max_iter_numberinput'
+            )
+            st.write('You set the maximum iterations to: {}'.format(lg_num_iterations))
+
+        lg_params = {
+            'num_iterations': lg_num_iterations,
+            'learning_rate': [float(val) for val in lg_learning_rate_input.split(',')],
         }
-
-        if st.button('Train Multiple Linear Regression Model'):
-            # Handle errors
+        if st.button('Logistic Regression Model'):
             try:
-                multi_reg_model = LinearRegression(learning_rate=multiple_reg_params['alpha'][0], 
-                                                   num_iterations=int(multiple_reg_params['num_iterations'][0]))
-                multi_reg_model.fit(X_train, y_train)
-                st.session_state[regression_methods_options[0]] = multi_reg_model
+                lg_model = LogisticRegression(num_iterations=lg_params['num_iterations'], 
+                                            learning_rate=lg_params['learning_rate'][0])
+                lg_model.fit(X_train.to_numpy(), np.ravel(y_train))
+                st.session_state[classification_methods_options[0]] = lg_model
             except ValueError as err:
                 st.write({str(err)})
-
-        if regression_methods_options[0] not in st.session_state:
-            st.write('Multiple Linear Regression Model is untrained')
+        
+        if classification_methods_options[0] not in st.session_state:
+            st.write('Logistic Regression Model is untrained')
         else:
-            st.write('Multiple Linear Regression Model trained')
+            st.write('Logistic Regression Model trained')
 
-    # Polynomial Regression
-    if (regression_methods_options[1] in regression_model_select):
-        st.markdown('#### ' + regression_methods_options[1])
+    # Task 6: Stochastic Gradient Ascent with Logistic Regression
+    if (classification_methods_options[1] in classification_model_select):
+        st.markdown('#### ' + classification_methods_options[1])
 
-        poly_degree = st.number_input(
-            label='Enter the degree of polynomial',
-            min_value=0,
-            max_value=1000,
-            value=3,
-            step=1,
-            key='poly_degree_numberinput'
-        )
-        st.write('You set the polynomial degree to: {}'.format(poly_degree))
-
-        poly_num_iterations_input = st.number_input(
-            label='Enter the number of iterations to run Gradient Descent (seperate with commas)👇',
+        # Number of iterations: maximum iterations to run the iterative SGD
+        sdg_num_iterations = st.number_input(
+            label='Enter the number of maximum iterations on training data',
             min_value=1,
-            max_value=10000,
-            value=50,
-            step=1,
-            key='poly_num_iter'
+            max_value=5000,
+            value=500,
+            step=100,
+            key='sgd_num_iterations_numberinput'
         )
-        st.write('You set the polynomial degree to: {}'.format(poly_num_iterations_input))
+        st.write('You set the maximum iterations to: {}'.format(sdg_num_iterations))
 
-        poly_input=[0.001]
-        poly_learning_rate_input = st.text_input(
-            label='Input learning rate 👇',
-            value='0.0001',
-            key='poly_alphas_textinput'
+        # learning_rate: Constant that multiplies the regularization term. Ranges from [0 Inf)
+        sdg_learning_rate = st.text_input(
+            label='Input one alpha value',
+            value='0.001',
+            key='sdg_learning_rate_numberinput'
         )
-        st.write('You select the following alpha value(s): {}'.format(poly_learning_rate_input))
+        sdg_learning_rate = float(sdg_learning_rate)
+        st.write('You select the following learning rate: {}'.format(sdg_learning_rate))
 
-        poly_reg_params = {
-            'num_iterations': poly_num_iterations_input,
-            'alphas': [float(val) for val in poly_learning_rate_input.split(',')],
-            'degree' : poly_degree
+        # tolerance: stopping criteria for iterations
+        sgd_batch_size = st.text_input(
+            label='Input a batch size value',
+            value='50',
+            key='sgd_batch_size_textinput'
+        )
+        sgd_batch_size = int(sgd_batch_size)
+        st.write('You select the following batch_size: {}'.format(sgd_batch_size))
+
+        sgd_params = {
+            'num_iterations': sdg_num_iterations,
+            'batch_size': sgd_batch_size,
+            'learning_rate': sdg_learning_rate,
         }
 
-        if st.button('Train Polynomial Regression Model'):
-            # Handle errors
+        if st.button('Train Stochastic Gradient Ascent Model'):
             try:
-                poly_reg_model = PolynomailRegression(poly_reg_params['degree'], 
-                                                      poly_reg_params['alphas'][0], 
-                                                      poly_reg_params['num_iterations'])
-                poly_reg_model.fit(X_train, y_train)
-                st.session_state[regression_methods_options[1]] = poly_reg_model
+                sdg_model = StochasticLogisticRegression(num_iterations=sgd_params['num_iterations'], 
+                                                        learning_rate=sgd_params['learning_rate'],
+                                                        batch_size=sgd_params['batch_size'])
+                sdg_model.fit(X_train.to_numpy(), np.ravel(y_train))
+                st.session_state[classification_methods_options[1]] = sdg_model
             except ValueError as err:
                 st.write({str(err)})
-
-        if regression_methods_options[1] not in st.session_state:
-            st.write('Polynomial Regression Model is untrained')
+        if classification_methods_options[1] not in st.session_state:
+            st.write('Stochastic Gradient Ascent Model is untrained')
         else:
-            st.write('Polynomial Regression Model trained')
+            st.write('Stochastic Gradient Ascent Model trained')
 
-    # Ridge Regression
-    if (regression_methods_options[2] in regression_model_select):
-        st.markdown('#### ' + regression_methods_options[2])
-
-        # Add parameter options to each regression method
-        ridge_l2_penalty_input = st.text_input(
-            label='Enter the l2 penalty (0-1)👇',
-            value='0.5',
-            key='ridge_l2_penalty_textinput'
-        )
-        st.write('You select the following l2 penalty value(s): {}'.format(ridge_l2_penalty_input))
-
-        ridge_num_iterations_input = st.text_input(
-            label='Enter the number of iterations to run Gradient Descent (seperate with commas)👇',
-            value='100',
-            key='ridge_num_iter'
-        )
-        st.write('You set the number of iterations to: {}'.format(ridge_num_iterations_input))
-
-        ridge_alphas = st.text_input(
-            label='Input learning rate 👇',
-            value='0.0001',
-            key='ridge_lr_textinput'
-        )
-        st.write('You select the following learning rate: {}'.format(ridge_alphas))
-
-        ridge_params = {
-            'num_iterations': [int(val) for val in ridge_num_iterations_input.split(',')],
-            'learning_rate': [float(val) for val in ridge_alphas.split(',')],
-            'l2_penalty':[float(val) for val in ridge_l2_penalty_input.split(',')]
-        }
-        if st.button('Train Ridge Regression Model'):
-            # Train ridge on all feature --> feature selection
-            # Handle Errors
-            try:
-                ridge_model = RidgeRegression(learning_rate=ridge_params['learning_rate'][0],
-                                           num_iterations=ridge_params['num_iterations'][0],
-                                           l2_penalty=ridge_params['l2_penalty'][0])
-                ridge_model.fit(X_train, y_train)
-                st.session_state[regression_methods_options[2]] = ridge_model
-            except ValueError as err:
-                st.write({str(err)})
-
-        if regression_methods_options[2] not in st.session_state:
-            st.write('Ridge Model is untrained')
-        else:
-            st.write('Ridge Model trained')
-
-    st.markdown('#### Inspect fitted model')
-    # Plot model
-    plot_model = st.selectbox(
-        label='Select model to plot',
-        options=regression_model_select,
-        key='plot_model_select'
-    )
-
-    # Select input features
-    feature_plot_select = st.selectbox(
-        label='Select feature to plot',
-        options=feature_input_select
-    )
-    
-    if(regression_model_select and plot_model and feature_plot_select):
-        if(plot_model in st.session_state):
-            find_feature = np.char.find(feature_input_select, feature_plot_select)
-            f_idx = np.where(find_feature == 0)[0][0]
-            feature_name = feature_input_select[f_idx]
-            
-            model = st.session_state[plot_model]
-
-            y_pred = model.predict(X_val)
-            if(y_pred is not None):
-
-                test = X_val[:,f_idx]
-                test = test.reshape(-1)
-                y_pred = y_pred.reshape(-1)
-                y_val = y_val.reshape(-1)
-
-                fig = make_subplots(rows=2, cols=1,
-                        shared_xaxes=True, vertical_spacing=0.1)
-                
-                fig.add_trace(go.Scatter(x=test,
-                            y=y_val, mode='markers', name="Features"), row=1, col=1)
-                fig.add_trace(go.Line(x=test,
-                            y=y_pred, mode='markers', name="Predictions"), row=1, col=1)
-
-                fig.update_xaxes(title_text="X")
-                fig.update_yaxes(title_text='Y', row=0, col=1)
-                fig.update_layout(title='Projection of predictions with real values '+feature_plot_select)
-                st.plotly_chart(fig)
-    
-    # Store models
+    # Store models in dict
     trained_models={}
-    for model_name in regression_model_select:
+    for model_name in classification_methods_options:
         if(model_name in st.session_state):
             trained_models[model_name] = st.session_state[model_name]
 
-    # Inspect Regression coefficients
+
+    # Task 9: Inspect classification coefficients
     st.markdown('## Inspect model coefficients')
 
     # Select multiple models to inspect
     inspect_models = st.multiselect(
-        label='Select model',
-        options=regression_model_select,
+        label='Select features for classification input',
+        options=classification_model_select,
         key='inspect_multiselect'
     )
     st.write('You selected the {} models'.format(inspect_models))
-    
+
     models = {}
     weights_dict = {}
     if(inspect_models):
         for model_name in inspect_models:
-            if(model_name in trained_models):
-                models[model_name] = st.session_state[model_name]
-                weights_dict = models[model_name].get_weights(model_name, feature_input_select)
+            weights_dict = trained_models[model_name].get_weights(model_name)
 
-    # Inspect model cost
-    st.markdown('## Inspect model cost')
+    # Inspect model likelihood
+    st.markdown('## Inspect model likelihood')
 
     # Select multiple models to inspect
-    inspect_model_cost = st.selectbox(
+    inspect_model_likelihood = st.selectbox(
         label='Select model',
-        options=regression_model_select,
+        options=classification_model_select,
         key='inspect_cost_multiselect'
     )
 
-    st.write('You selected the {} model'.format(inspect_model_cost))
+    st.write('You selected the {} model'.format(inspect_model_likelihood))
 
-    if(inspect_model_cost):
+    if(inspect_model_likelihood):
         try:
             fig = make_subplots(rows=1, cols=1,
                 shared_xaxes=True, vertical_spacing=0.1)
-            cost_history=trained_models[inspect_model_cost].cost_history
+            cost_history=trained_models[inspect_model_likelihood].likelihood_history
 
             x_range = st.slider("Select x range:",
                                     value=(0, len(cost_history)))
             st.write("You selected : %d - %d"%(x_range[0],x_range[1]))
             cost_history_tmp = cost_history[x_range[0]:x_range[1]]
             
-            fig.add_trace(go.Scatter(x=np.arange(x_range[0],x_range[1],1),
-                        y=cost_history_tmp, mode='markers', name=inspect_model_cost), row=1, col=1)
+            fig.add_trace(go.Line(x=np.arange(x_range[0],x_range[1],1),
+                        y=cost_history_tmp, mode='lines', name=inspect_model_likelihood), row=1, col=1)
 
             fig.update_xaxes(title_text="Training Iterations")
-            fig.update_yaxes(title_text='Cost', row=1, col=1)
-            fig.update_layout(title=inspect_model_cost)
+            fig.update_yaxes(title_text='Log Likelihood', row=1, col=1)
+            fig.update_layout(title=inspect_model_likelihood)
             st.plotly_chart(fig)
         except Exception as e:
             print(e)
