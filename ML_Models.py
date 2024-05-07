@@ -46,7 +46,6 @@ df.columns = df.columns.astype(str)
 #df = pd.concat([df,sex], axis=1)
 #df = df.iloc[:,33:136]
 
-
 x_data = df.drop(['DIABETERES'],axis=1)
 y_data = df['DIABETERES']
 y_data=y_data.astype('int')
@@ -65,36 +64,42 @@ X_train, X_test, y_train, y_test = train_test_split(x_data, y_data, test_size = 
 #X_train = enc.fit_transform(X_train).toarray()
 #X_test = enc.fit_transform(X_test).toarray()
 
-gnb = GaussianNB()
-gnb.fit(X_train, y_train)
-predictions_log = gnb.predict(X_test)
-print(classification_report(y_test, predictions_log))
+#gnb = GaussianNB()
+#nb.fit(X_train, y_train)
+#predictions_log = gnb.predict(X_test)
+#print(classification_report(y_test, predictions_log))
 
+##KNN
 neigh = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
 neigh.fit(X_train, y_train)
 predictions_log = neigh.predict(X_test)
 print(classification_report(y_test, predictions_log))
 
+##Random Forest
 clf = RandomForestClassifier(random_state=0)
 clf.fit(X_train, y_train)
 predictions_log = clf.predict(X_test)
 print(classification_report(y_test, predictions_log))
 
-logmodel = LogisticRegression(penalty='l2',class_weight = 'auto', max_iter = 100000, solver = 'newton-cholesky')
+#Logistic Regression (from sklearn)
+logmodel = LogisticRegression(penalty='l2', max_iter = 100000, solver = 'newton-cholesky')
 logmodel.fit(X_train, y_train)
 predictions_log = logmodel.predict(X_test)
 print(classification_report(y_test, predictions_log))
 
+#Decision tree
 treed = DecisionTreeClassifier()
 treed = treed.fit(X_train, y_train)
 predictions_log = treed.predict(X_test)
 print(classification_report(y_test, predictions_log))
 
+#SVM
 svm = make_pipeline(StandardScaler(), SVC(gamma='auto'))
 svm.fit(X_train, y_train)
 predictions_log = svm.predict(X_test)
 print(classification_report(y_test, predictions_log))
 
+#Linear SVM
 lsvm = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
 lsvm.fit(X_train, y_train)
 predictions_log = lsvm.predict(X_test)

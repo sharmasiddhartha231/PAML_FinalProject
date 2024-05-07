@@ -7,8 +7,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.pipeline import Pipeline
 
 # set seed=10 to produce consistent results
 random.seed(10)
@@ -49,7 +47,7 @@ def fetch_dataset():
     return df
 
 # Checkpoint 4
-def split_dataset(df, number, target, random_state=42):
+def split_dataset(df, number, target, input_var, oversample=False,random_state=42):
     """
     This function splits the dataset into the training and test sets.
 
@@ -72,12 +70,24 @@ def split_dataset(df, number, target, random_state=42):
     y_test = []
     
     # Add code here
-    X, y = df.loc[:, ~df.columns.isin([target])], df.loc[:, df.columns.isin([target])]
-    under = SMOTE(sampling_strategy=1)
-    steps = [('u', under)]
-    pipeline = Pipeline(steps=steps)
-# transform the dataset
-    X, y = pipeline.fit_resample(X, y)
+    df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
+    df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
+    df.DIABETERES[df.DIABETERES == 'Diabetes'] = 1
+    X, y = df.loc[:, df.columns.isin(input_var)], df.loc[:, df.columns.isin([target])]
+    for i in input_var:
+        i = pd.get_dummies(X[i], drop_first=False)
+        X = pd.concat([X,i], axis=1)
+    X = X.loc[:, ~X.columns.isin(input_var)]
+    X.columns = X.columns.astype(str)
+    X = X.replace(False,0, regex=True)
+    X = X.replace(True,1, regex=True)
+    y=y.astype('int')
+
+    if oversample == True:
+        over = SMOTE(sampling_strategy=1)
+        # transform the dataset
+        X, y = over.fit_resample(X, y)
+    
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
     return X_train, X_test, y_train, y_test
 
@@ -274,7 +284,7 @@ if df is not None:
     #st.dataframe(df)
     feature_predict_select = 'DIABETERES'
     # Select input features
-    feature_input_select = st.selectbox(
+    feature_input_select = st.multiselect(
         label='Select features for classification input',
         options=[f for f in list(df.columns) if f != feature_predict_select],
         key='feature_select'
@@ -285,6 +295,13 @@ if df is not None:
     st.write('You selected input {}'.format(
         feature_input_select))
 
+    oversample_select = st.selectbox(
+        label='Do you wish to oversample the dataset (Highly Recommended)',
+        options=['No', 'Yes'],
+        key='oversample_select'
+    )
+
+    st.session_state['oversample'] = oversample_select
     # Task 4: Split train/test
     st.markdown('## Split dataset into Train/Test sets')
     st.markdown(
@@ -294,9 +311,14 @@ if df is not None:
     number = 100 - number
     X_train, X_test, y_train, y_test = [], [], [], []
     # Compute the percentage of test and training data
-    if (feature_predict_select in df.columns):
+    if (feature_predict_select in df.columns and oversample_select == 'Yes'):
         X_train, X_test, y_train, y_test = split_dataset(
-            df, number, feature_predict_select, feature_input_select)
+            df, number, feature_predict_select, feature_input_select, oversample=True)
+    if (feature_predict_select in df.columns and oversample_select == 'No'):
+        X_train, X_test, y_train, y_test = split_dataset(
+            df, number, feature_predict_select, feature_input_select, oversample=False)
+    st.write('Number of entries in training set: {}'.format(X_train.shape[0]))
+    st.write('Number of entries in testing set: {}'.format(X_test.shape[0]))
 
     classification_methods_options = ['Logistic Regression',
                                       'K Nearest Neighbor',
@@ -311,17 +333,15 @@ if df is not None:
     st.session_state['trained_models'] = trained_models
     
     # Collect ML Models of interests
-    classification_model_select = st.multiselect(
+    classification_model_select = st.selectbox(
         label='Select classification model for prediction',
         options=classification_methods_options,
     )
-    st.write('You selected the follow models: {}'.format(
-        classification_model_select))
+    st.write('You selected the follow models: {}'.format(classification_model_select))
 
     # Add parameter options to each regression method
-
     # Task 5: Logistic Regression
-    if (classification_methods_options[0] in classification_model_select):# or classification_methods_options[0] in trained_models):
+    if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('#### ' + classification_methods_options[0])
 
         lg_col1, lg_col2 = st.columns(2)
