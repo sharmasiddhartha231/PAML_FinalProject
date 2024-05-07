@@ -9,19 +9,15 @@ from sklearn.preprocessing import OrdinalEncoder
 
 #############################################
 
-st.markdown("# Practical Applications of Machine Learning (PAML)")
+st.markdown('# Explore Results')
 
 #############################################
 
-st.markdown("### Homework 2 - Predicting Housing Prices Using Regression")
+st.markdown('On this page, we present the results from the various machine learning models we tested to check how they perform when predicting using the entire set of variables. We also present the results of for the association of these different variables with increased risk of diabetes. The results for the association of different factors to diabetes risk is presented as Odds Ratio calculated using a Univariable Logistic Regression model.')
+st.markdown('Please do keep in mind that the association of different factors to diabetes risk is simply correlative and does not imply causation.')
 
-#############################################
+st.markdown('If you wish to train the various machine learning models using different sets of parameters by yourself, please switch to the **Model Exploration** page. More details regarding these methods are provided there for your assistance.')
 
-st.markdown('# Explore Dataset')
-
-#############################################
-
-st.markdown('### Import Dataset')
 
 # Helper Function
 def load_dataset(filepath):

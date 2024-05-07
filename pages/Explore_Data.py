@@ -3,9 +3,7 @@ import pandas as pd
 import plotly.express as px
 from pandas.plotting import scatter_matrix
 import os
-from itertools import combinations
 import numpy as np
-from sklearn.preprocessing import OrdinalEncoder
 
 #############################################
 
@@ -63,11 +61,11 @@ def load_dataset(filepath):
     Output: pandas dataframe df
     """
     data = pd.read_csv(filepath, sep='\t')
-    st.session_state['diabetes'] = data
+    st.session_state['data'] = data
     return data
 
 # Helper Function
-def compute_correlation(df, features):
+#def compute_correlation(df, features):
     """
     This function computes pair-wise correlation coefficents of X and render summary strings
 
@@ -94,8 +92,8 @@ def compute_correlation(df, features):
 
 ###################### FETCH DATASET #######################
 df = None
-if('diabetes' in st.session_state):
-    df = st.session_state['diabetes']
+if('data' in st.session_state):
+    df = st.session_state['data']
 else:
     filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
     if(filepath):
@@ -109,7 +107,7 @@ if df is not None:
     st.markdown('### 1. Explore Dataset Features')
 
     # Restore dataset if already in memory
-    st.session_state['diabetes'] = df
+    st.session_state['data'] = df
 
     # Display dataframe as table
     st.dataframe(df)
