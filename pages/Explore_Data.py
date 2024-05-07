@@ -97,7 +97,7 @@ df = None
 if('diabetes' in st.session_state):
     df = st.session_state['diabetes']
 else:
-    filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String.txt"
+    filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
     if(filepath):
         df = load_dataset(filepath)
 
@@ -242,28 +242,28 @@ if df is not None:
             print(e)
     
 ###################### CORRELATION ANALYSIS #######################
-    st.markdown("### 11. Correlation Analysis")
+    #st.markdown("### 11. Correlation Analysis")
     # Collect features for correlation analysis using multiselect
-    numeric_columns = list(df.select_dtypes(['float','int']).columns)
+    #numeric_columns = list(df.columns)
 
 
-    select_features_for_correlation = st.multiselect(
-        'Select features for visualizing the correlation analysis (up to 4 recommended)',
-        numeric_columns,
-    )
+    #select_features_for_correlation = st.multiselect(
+    #    'Select features for visualizing the correlation analysis (up to 4 recommended)',
+    #    numeric_columns,
+    #)
 
     # Compute correlation between selected features
-    correlation, correlation_summary = compute_correlation(
-        df, select_features_for_correlation)
-    st.write(correlation)
+    #correlation, correlation_summary = compute_correlation(
+    #    df, select_features_for_correlation)
+    #st.write(correlation)
 
     # Display correlation of all feature pairs
-    if select_features_for_correlation:
-        try:
-            fig = scatter_matrix(
-                df[select_features_for_correlation], figsize=(12, 8))
-            st.pyplot(fig[0][0].get_figure())
-        except Exception as e:
-            print(e)
+    #if select_features_for_correlation:
+    #    try:
+    #        fig = scatter_matrix(
+    #            df[select_features_for_correlation], figsize=(12, 8))
+    #        st.pyplot(fig[0][0].get_figure())
+    #    except Exception as e:
+    #        print(e)
 
-    st.markdown('#### Continue to Preprocess Data')
+    #st.markdown('#### Continue to Preprocess Data')
