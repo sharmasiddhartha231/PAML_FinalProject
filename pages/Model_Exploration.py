@@ -7,7 +7,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 from imblearn.over_sampling import SMOTE
-
+from sklearn.metrics import confusion_matrix
+from sklearn.naive_bayes import GaussianNB
 # set seed=10 to produce consistent results
 random.seed(10)
 
@@ -90,6 +91,40 @@ def split_dataset(df, number, target, input_var, oversample=False,random_state=4
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
     return X_train, X_test, y_train, y_test
+
+def compute_evaluation(prediction_labels, true_labels):    
+    '''
+    Compute classification accuracy
+    Input
+        - prediction_labels (numpy): predicted product sentiment
+        - true_labels (numpy): true product sentiment
+    Output
+        - accuracy (float): accuracy percentage (0-100%)
+    '''
+    precision=0
+    misclassification=0
+    accuracy=0
+    sensitivity=0
+    specificity=0
+    # Add code here
+    metric_dict = {'Precision': -1,
+                   'Sensitivity': -1,
+                   'Accuracy': -1,
+                   'Specificity': -1,
+                   'Misclassification':-1}
+    cmatrix = confusion_matrix(true_labels, prediction_labels, labels=[0,1])
+    tn, fp, fn, tp = cmatrix.ravel()
+    specificity = tn / (tn+fp)
+    accuracy = (tp + tn)/(tp + tn + fp + fn)
+    misclassification = (fp + fn)/(tp + tn + fp + fn)
+    sensitivity = tp /(tp + fn)
+    precision = tp / (tp + fp)
+    metric_dict['Precision'] = precision
+    metric_dict['Sensitivity'] = sensitivity
+    metric_dict['Accuracy'] = accuracy
+    metric_dict['Specificity'] = specificity
+    metric_dict['Misclassification'] = misclassification
+    return metric_dict
 
 class LogisticRegression(object):
     def __init__(self, learning_rate=0.001, num_iterations=500): 
@@ -303,9 +338,9 @@ if df is not None:
 
     st.session_state['oversample'] = oversample_select
     # Task 4: Split train/test
-    st.markdown('## Split dataset into Train/Test sets')
+    st.markdown('### Split dataset into Train/Test sets')
     st.markdown(
-        '### Enter the percentage of training data to use for training the model')
+        '#### Enter the percentage of training data to use for training the model')
     number = st.number_input(
         label='Enter size of train set (X%)', min_value=0, max_value=100, value=30, step=1)
     number = 100 - number
@@ -342,7 +377,7 @@ if df is not None:
     # Add parameter options to each regression method
     # Task 5: Logistic Regression
     if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('#### ' + classification_methods_options[0])
+        st.markdown('## ' + classification_methods_options[0])
 
         lg_col1, lg_col2 = st.columns(2)
 
@@ -359,7 +394,7 @@ if df is not None:
             lg_num_iterations = st.number_input(
                 label='Enter the number of maximum iterations on training data',
                 min_value=1,
-                max_value=5000,
+                max_value=5000000,
                 value=500,
                 step=100,
                 key='lg_max_iter_numberinput'
@@ -384,4 +419,39 @@ if df is not None:
         else:
             st.write('Logistic Regression Model trained')
 
-    st.write('Continue to Test Model')
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity', 'Misclassification'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        if evaluation_metric_select in evaluation_options:
+            Metric_data = compute_evaluation(y_pred, y_test, evaluation_metric_select)
+
+if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[4])
+
+        gnb = GaussianNB()
+        gnb.fit(X_train, y_train)
+        y_pred = gnb.predict(X_test)
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        Metric_data = compute_evaluation(y_pred, y_test)
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
