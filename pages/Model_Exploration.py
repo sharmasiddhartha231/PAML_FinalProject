@@ -9,6 +9,15 @@ import pandas as pd
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import confusion_matrix
 from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler
+import seaborn as sns
+from sklearn.pipeline import make_pipeline
+
 # set seed=10 to produce consistent results
 random.seed(10)
 
@@ -356,11 +365,12 @@ if df is not None:
     st.write('Number of entries in testing set: {}'.format(X_test.shape[0]))
 
     classification_methods_options = ['Logistic Regression',
+                                      'Logistic Regression (Newton Cholesky)'
                                       'K Nearest Neighbor',
                                       'Decision Tree',
                                       'Random Forest',
                                       'Naive Bayes',
-                                      'Support Vector Machines']
+                                      'Linear Support Vector Machines']
 
     trained_models = [
         model for model in classification_methods_options if model in st.session_state]
@@ -430,12 +440,141 @@ if df is not None:
         if evaluation_metric_select in evaluation_options:
             Metric_data = compute_evaluation(y_pred, y_test, evaluation_metric_select)
 
+if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[1])
+        ml_model = LogisticRegression(penalty='l2', max_iter = 100000, solver = 'newton-cholesky')
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        Metric_data = compute_evaluation(y_pred, y_test)
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
+
+if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[2])
+
+        ml_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        Metric_data = compute_evaluation(y_pred, y_test)
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+
+if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[3])
+
+        ml_model = DecisionTreeClassifier()
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        Metric_data = compute_evaluation(y_pred, y_test)
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+
 if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[4])
 
-        gnb = GaussianNB()
-        gnb.fit(X_train, y_train)
-        y_pred = gnb.predict(X_test)
+        ml_model = RandomForestClassifier(random_state=0)
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        Metric_data = compute_evaluation(y_pred, y_test)
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+
+if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[5])
+
+        ml_model = GaussianNB()
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        Metric_data = compute_evaluation(y_pred, y_test)
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+
+if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[6])
+
+        ml_model = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
         evaluation_metric_select = st.multiselect(

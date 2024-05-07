@@ -1,30 +1,19 @@
-from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn import tree
-from sklearn.datasets import make_classification
-import seaborn as sns
 import pandas as pd
-from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
 from sklearn.svm import SVC
 from sklearn.svm import LinearSVC
 import plotly.graph_objects as go
-import imblearn
 import numpy as np
-from sklearn.preprocessing import OneHotEncoder
 from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.pipeline import Pipeline
 
 df = pd.read_csv("Diabetes_Data_Sub_Strict_Main_String_New.txt", sep='\t')
 df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
@@ -66,46 +55,46 @@ X_train, X_test, y_train, y_test = train_test_split(x_data, y_data, test_size = 
 
 #gnb = GaussianNB()
 #nb.fit(X_train, y_train)
-#predictions_log = gnb.predict(X_test)
-#print(classification_report(y_test, predictions_log))
+#y_pred = gnb.predict(X_test)
+#print(classification_report(y_test, y_pred))
 
 ##KNN
 neigh = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
 neigh.fit(X_train, y_train)
-predictions_log = neigh.predict(X_test)
-print(classification_report(y_test, predictions_log))
+y_pred = neigh.predict(X_test)
+print(classification_report(y_test, y_pred))
 
 ##Random Forest
 clf = RandomForestClassifier(random_state=0)
 clf.fit(X_train, y_train)
-predictions_log = clf.predict(X_test)
-print(classification_report(y_test, predictions_log))
+y_pred = clf.predict(X_test)
+print(classification_report(y_test, y_pred))
 
 #Logistic Regression (from sklearn)
 logmodel = LogisticRegression(penalty='l2', max_iter = 100000, solver = 'newton-cholesky')
 logmodel.fit(X_train, y_train)
-predictions_log = logmodel.predict(X_test)
-print(classification_report(y_test, predictions_log))
+y_pred = logmodel.predict(X_test)
+print(classification_report(y_test, y_pred))
 
 #Decision tree
 treed = DecisionTreeClassifier()
 treed = treed.fit(X_train, y_train)
-predictions_log = treed.predict(X_test)
-print(classification_report(y_test, predictions_log))
+y_pred = treed.predict(X_test)
+print(classification_report(y_test, y_pred))
 
 #SVM
 svm = make_pipeline(StandardScaler(), SVC(gamma='auto'))
 svm.fit(X_train, y_train)
-predictions_log = svm.predict(X_test)
-print(classification_report(y_test, predictions_log))
+y_pred = svm.predict(X_test)
+print(classification_report(y_test, y_pred))
 
 #Linear SVM
 lsvm = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
 lsvm.fit(X_train, y_train)
-predictions_log = lsvm.predict(X_test)
-print(classification_report(y_test, predictions_log))
+y_pred = lsvm.predict(X_test)
+print(classification_report(y_test, y_pred))
 
-c1 = confusion_matrix(y_test, predictions_log, labels=[0,1])
+c1 = confusion_matrix(y_test, y_pred, labels=[0,1])
 tn, fp, fn, tp = c1.ravel()
 specificity = tn / (tn+fp)
 accuracy = (tp + tn)/(tp + tn + fp + fn)
