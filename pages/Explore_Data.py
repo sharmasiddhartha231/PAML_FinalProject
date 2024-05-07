@@ -64,32 +64,6 @@ def load_dataset(filepath):
     st.session_state['data'] = data
     return data
 
-# Helper Function
-#def compute_correlation(df, features):
-    """
-    This function computes pair-wise correlation coefficents of X and render summary strings
-
-    Input: 
-        - df: pandas dataframe 
-        - features: a list of feature name (string), e.g. ['age','height']
-    Output: 
-        - correlation: correlation coefficients between one or more features
-        - summary statements: a list of summary strings where each of it is in the format: 
-            '- Features X and Y are {strongly/weakly} {positively/negatively} correlated: {correlation value}'
-    """
-    correlation = df[features].corr()
-    feature_pairs = combinations(features, 2)
-    cor_summary_statements = []
-
-    for f1, f2 in feature_pairs:
-        cor = correlation[f1][f2]
-        summary = '- Features %s and %s are %s %s correlated: %.2f' % (
-            f1, f2, 'strongly' if cor > 0.5 else 'weakly', 'positively' if cor > 0 else 'negatively', cor)
-        st.write(summary)
-        cor_summary_statements.append(summary)
-
-    return correlation, cor_summary_statements
-
 ###################### FETCH DATASET #######################
 df = None
 if('data' in st.session_state):

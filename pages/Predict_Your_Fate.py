@@ -9,19 +9,9 @@ from sklearn.preprocessing import OrdinalEncoder
 
 #############################################
 
-st.markdown("# Practical Applications of Machine Learning (PAML)")
+st.markdown('### Predicting your Diabetes Status')
 
-#############################################
-
-st.markdown("### Homework 2 - Predicting Housing Prices Using Regression")
-
-#############################################
-
-st.markdown('# Explore Dataset')
-
-#############################################
-
-st.markdown('### Import Dataset')
+st.markdown('Now that we have seen the overall results and trained various models and gotten an idea of how they work and what works best, we created this interface to allow the users to predict whether they have diabetes or not. For this, the users will enter their information below, choose a model to run and it will predict whether the user has Diabetes or not. This is specifically based on providing all information as we have not included any functionality for predicting whether the user has diabetes or not based on a subset of factors.')
 
 # Helper Function
 def load_dataset(filepath):
@@ -33,375 +23,16 @@ def load_dataset(filepath):
     Input: data is the filename or path to file (string)
     Output: pandas dataframe df
     """
-    data = pd.read_csv(filepath)
-    st.session_state['house_df'] = data
+    data = pd.read_csv(filepath, sep='\t')
+    st.session_state['data'] = data
     return data
-
-# Helper function
-def sidebar_filter(df, chart_type, x=None, y=None):
-    """
-    This function renders the feature selection sidebar 
-
-    Input: 
-        - df: pandas dataframe containing dataset
-        - chart_type: the type of selected chart
-        - x: features
-        - y: targets
-    Output: 
-        - list of sidebar filters on features
-    """
-    df=df.dropna()
-    side_bar_data = []
-
-    select_columns = []
-    if (x is not None):
-        select_columns.append(x)
-    if (y is not None):
-        select_columns.append(y)
-    if (x is None and y is None):
-        select_columns = list(df.select_dtypes(include='number').columns)
-
-    for idx, feature in enumerate(select_columns):
-        try:
-            f = st.sidebar.slider(
-                str(feature),
-                float(df[str(feature)].min()),
-                float(df[str(feature)].max()),
-                (float(df[str(feature)].min()), float(df[str(feature)].max())),
-                key=chart_type+str(idx)
-            )
-        except Exception as e:
-            print(e)
-        side_bar_data.append(f)
-    return side_bar_data
-
-# Helper Function
-def compute_correlation(df, features):
-    """
-    This function computes pair-wise correlation coefficents of X and render summary strings
-
-    Input: 
-        - df: pandas dataframe 
-        - features: a list of feature name (string), e.g. ['age','height']
-    Output: 
-        - correlation: correlation coefficients between one or more features
-        - summary statements: a list of summary strings where each of it is in the format: 
-            '- Features X and Y are {strongly/weakly} {positively/negatively} correlated: {correlation value}'
-    """
-    correlation = df[features].corr()
-    feature_pairs = combinations(features, 2)
-    cor_summary_statements = []
-
-    for f1, f2 in feature_pairs:
-        cor = correlation[f1][f2]
-        summary = '- Features %s and %s are %s %s correlated: %.2f' % (
-            f1, f2, 'strongly' if cor > 0.5 else 'weakly', 'positively' if cor > 0 else 'negatively', cor)
-        st.write(summary)
-        cor_summary_statements.append(summary)
-
-    return correlation, cor_summary_statements
-
-def summarize_missing_data(df, top_n=3):
-    """
-    This function summarizes missing values in the dataset
-
-    Input: 
-        - df: the pandas dataframe
-        - top_n: top n features with missing values, default value is 3
-    Output: 
-        - a dictionary containing the following keys and values: 
-            - 'num_categories': counts the number of features that have missing values
-            - 'average_per_category': counts the average number of missing values across features
-            - 'total_missing_values': counts the total number of missing values in the dataframe
-            - 'top_missing_categories': lists the top n features with missing values
-    """
-    out_dict = {'num_categories': 0,
-                'average_per_category': 0,
-                'total_missing_values': 0,
-                'top_missing_categories': []}
-
-    # Used for top categories with missing data
-    missing_column_counts = df[df.columns[df.isnull().any()]].isnull().sum()
-    max_idxs = np.argsort(missing_column_counts.to_numpy())[::-1][:top_n]
-
-    # Compute missing statistics
-    out_dict['num_categories'] = df.isna().any(axis=0).sum()
-    out_dict['average_per_category'] = df.isna().sum().sum()/len(df.columns)
-    out_dict['total_missing_values'] = df.isna().sum().sum()
-    out_dict['top_missing_categories'] = df.columns[max_idxs[:top_n]].to_numpy()
-
-    # Display missing statistics
-    st.markdown('Number of categories with missing values: {0:.2f}'.format(
-        out_dict['num_categories']))
-    st.markdown('Average number of missing values per category: {0:.2f}'.format(
-        out_dict['average_per_category']))
-    st.markdown('Total number of missing values: {0:.2f}'.format(
-        out_dict['total_missing_values']))
-    st.markdown('Top {} categories with most missing values: {}'.format(
-        top_n, out_dict['top_missing_categories']))
-    return out_dict
-
-def remove_features(df,removed_features):
-    """
-    Remove the features in removed_features (list) from the input pandas dataframe df. 
-
-    Input: df is dataset in pandas dataframe
-    Output: pandas dataframe df
-    """
-    X = df.copy()
-    X  = X.drop(removed_features, axis=1)
-    st.session_state['house_df'] = X
-    return X
-
-def remove_nans(df):
-    """
-    This function removes all NaN values in the dataframe
-
-    Input: 
-        - df: pandas dataframe
-    Output: 
-        - df: updated df with no Nan observations
-    """
-    # Remove obs with nan values
-    df = df.dropna()
-    # df.to_csv('remove_nans.csv',index= False)
-    st.session_state['house_df'] = df
-    return df
-
-def impute_dataset(df, impute_method):
-    """
-    Impute the dataset df with imputation method impute_method 
-    including mean, median, zero values or drop Nan values in 
-    the dataset (all numeric and string columns).
-
-    Input: 
-    - df is dataset in pandas dataframe
-    - impute_method = {'Zero', 'Mean', 'Median','DropNans'}
-    Output: pandas dataframe df
-    """
-    df=df.dropna()
-    X = df.copy()
-    nan_colns = X.columns[X.isna().any()].tolist()
-    numeric_columns = list(X.select_dtypes(['float','int']).columns)
-    if impute_method == 'Zero':
-        # X = X.fillna(0)
-        for col in nan_colns: 
-            if(col in numeric_columns):
-                X[col].fillna(0, inplace=True)
-    elif impute_method == 'Mean':
-        for col in nan_colns: 
-            if(col in numeric_columns):
-                X[col].fillna(value=X[col].mean(), inplace=True)
-    elif impute_method == 'Median':
-        for col in nan_colns:
-            if(col in numeric_columns):
-                X[col].fillna(value=X[col].median(), inplace=True)
-    elif impute_method == 'DropNans':
-        data_size1 = X.size
-        X = X.dropna()
-        data_size2 = X.size
-        st.write('%d values removed from the dataset' %(np.abs(data_size2-data_size1)))
-    st.session_state['house_df'] = X
-    return X
-
-def remove_outliers(df, features, outlier_removal_method=None):
-    """
-    This function removes the outliers of the given feature(s)
-
-    Input: 
-        - df: pandas dataframe
-        - feature: the feature(s) to remove outliers
-    Output: 
-        - dataset: the updated data that has outliers removed
-        - lower_bound: the lower 25th percentile of the data
-        - upper_bound: the upper 25th percentile of the data
-    """
-    df=df.dropna()
-    dataset = df.copy()
-
-    for feature in features:
-        lower_bound = dataset[feature].max()
-        upper_bound = dataset[feature].min()
-
-        if(outlier_removal_method =='IQR'): # IQR method
-            if (feature in df.columns):
-                dataset = dataset.dropna()
-                Q1 = np.percentile(dataset[feature], 25, axis=0)
-                Q3 = np.percentile(dataset[feature], 75, axis=0)
-                IQR = Q3 - Q1
-                upper_bound = Q3 + 1.5*IQR
-                lower_bound = Q1 - 1.5*IQR
-        else: # Standard deviation methods
-            upper_bound = dataset[feature].mean() + 3* dataset[feature].std() #mean + 3*std
-            lower_bound = dataset[feature].mean() - 3* dataset[feature].std() #mean - 3*std
-        dataset_size1 = dataset.size
-        dataset = dataset[dataset[feature] > lower_bound]
-        dataset = dataset[dataset[feature] < upper_bound]
-        dataset_size2 = dataset.size
-        st.write('%s: %d outliers were removed from feature %s in the dataset' % (outlier_removal_method,dataset_size1-dataset_size2, feature))
-
-    st.session_state['house_df'] = dataset
-    return dataset
-
-def one_hot_encode_feature(df, features):
-    """
-    This function performs one-hot-encoding on the given features
-
-    Input: 
-        - df: the pandas dataframe
-        - features: the feature(s) to perform one-hot-encoding
-    Output: 
-        - df: dataframe with one-hot-encoded feature
-    """
-    df=df.dropna()
-    #encoded_feature=df[features]
-    #for feat in features:
-    #    df = pd.get_dummies(df, columns=[feat])
-
-    for feat in features:
-        encoded_feature_df = pd.DataFrame({feat: df[feat]})
-        df = pd.get_dummies(df, columns=[feat])
-        df = pd.concat([df, encoded_feature_df], axis=1)
-    st.write('Features {} has been one-hot encoded.'.format(features))
-
-    st.session_state['house_df'] = df
-    return df
-
-def integer_encode_feature(df, features):
-    """
-    This function performs integer-encoding on the given features
-
-    Input: 
-        - df: the pandas dataframe
-        - features: the feature(s) to perform integer-encoding
-    Output: 
-        - df: dataframe with integer-encoded feature
-    """
-    df=df.dropna()
-    for feat in features:
-        enc = OrdinalEncoder()
-        df[[feat+'_int']] = enc.fit_transform(df[[feat]])
-    st.write('Feature {} has been integer encoded.'.format(features))
-    
-    st.session_state['house_df'] = df
-    return df
-
-def create_feature(df, math_select, math_feature_select, new_feature_name):
-    """
-    Create a new feature with name new_feature_name in dataset df with the 
-    mathematical operation math_select (string) on features math_feature_select (list). 
-
-    Input: 
-        - df: the pandas dataframe
-        - math_select: the math operation to perform on the selected features
-        - math_feature_select: the features to be performed on
-        - new_feature_name: the name for the new feature
-    Output: 
-        - df: the udpated dataframe
-    """
-    df = df.dropna()
-    if (len(math_feature_select) == 1): 
-        if(math_select == 'square root'):  # sqrt
-            df[new_feature_name] = np.sqrt(df[math_feature_select])
-        if(math_select == 'ceil'):  # ceil
-            df[new_feature_name] = np.ceil(df[math_feature_select])
-        if(math_select == 'floor'):  # floor
-            df[new_feature_name] = np.floor(df[math_feature_select])
-    else:
-        if (math_select == 'add'):
-            df[new_feature_name] = df[math_feature_select[0]] + df[math_feature_select[1]]
-        elif (math_select == 'subtract'):
-            df[new_feature_name] = df[math_feature_select[0]] - df[math_feature_select[1]]
-        elif (math_select == 'multiply'):
-            df[new_feature_name] = df[math_feature_select[0]] * df[math_feature_select[1]]
-        elif (math_select == 'divide'):
-            df[new_feature_name] = df[math_feature_select[0]] / df[math_feature_select[1]]
-    st.session_state['house_df'] = df
-    return df
-
-def compute_descriptive_stats(df, stats_feature_select, stats_select):
-    """
-    Compute descriptive statistics stats_select on a feature stats_feature_select 
-    in df. Statistics stats_select include mean, median, max, and min. Return 
-    the results in an output string out_str and dictionary out_dict (dictionary).
-
-    Input: 
-    - df: the pandas dataframe
-    - stats_feature_select: list of feaures to computer statistics on
-    - stats_select: list of mathematical opations
-    Output: 
-    - output_str: string used to display feature statistics
-    - out_dict: dictionary of feature statistics
-    """
-    output_str=''
-    out_dict = {
-        'mean': None,
-        'median': None,
-        'max': None,
-        'min': None
-    }
-    df=df.dropna()
-    X = df.copy()
-    for f in stats_feature_select:
-        output_str = str(f)
-        for s in stats_select:
-            if(s=='Mean'):
-                mean = round(X[f].mean(), 2)
-                output_str = output_str + ' mean: {0:.2f}    |'.format(mean)
-                out_dict['mean'] = mean
-            elif(s=='Median'):
-                median = round(X[f].median(), 2)
-                output_str = output_str + ' median: {0:.2f}    |'.format(median)
-                out_dict['median'] = median
-            elif(s=='Max'):
-                max = round(X[f].max(), 2)
-                output_str = output_str + ' max: {0:.2f}    |'.format(max)
-                out_dict['max'] = max
-            elif(s=='Min'):
-                min = round(X[f].min(), 2)
-                output_str = output_str + ' min: {0:.2f}    |'.format(min)
-                out_dict['min'] = min
-        st.write(output_str)
-    return output_str, out_dict
-
-def scale_features(df, features, scaling_method): 
-    """
-    Use the scaling_method to transform numerical features in the dataset df. 
-
-    Input: 
-        - df: the pandas dataframe
-        - features: list of features
-        - scaling method is a string; Options include {'Standardarization', 'Normalization', 'Log'}
-    Output: 
-        - Standarization: X_new = (X - mean)/Std
-        - Normalization: X_new = (X - X_min)/(X_max - X_min)
-        - Log: X_log = log(X)
-    """
-    df = df.dropna()
-    X = df.copy()
-    for f in features:
-        if(scaling_method == 'Standardarization'):
-            X[f+'_std'] = (X[f] - X[f].mean()) / X[f].std()
-            st.write('Feature {} is scaled using {}'.format(f, scaling_method))
-        elif(scaling_method == 'Normalization'):
-            X[f+'_norm'] = (X[f] - X[f].min()) / (X[f].max() - X[f].min())  
-            st.write('Feature {} is scaled using {}'.format(f, scaling_method))
-        elif(scaling_method == 'Log'):
-            X[f+'_log'] = np.log2(X[f])
-            X[X[f+'_log']<0] = 0 # Check for -inf
-            st.write('Feature {} is scaled using {}'.format(f, scaling_method))
-        else:
-            st.write('scaling_method is invalid.')
-
-    st.session_state['house_df'] = X
-    return X
 
 ###################### FETCH DATASET #######################
 df = None
-if('house_df' in st.session_state):
-    df = st.session_state['house_df']
+if('data' in st.session_state):
+    df = st.session_state['data']
 else:
-    filepath = st.file_uploader('Upload a Dataset', type=['csv', 'txt'])
+    filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
     if(filepath):
         df = load_dataset(filepath)
 
@@ -410,271 +41,202 @@ else:
 ######################### EXPLORE DATASET #########################
 
 if df is not None:
-    st.markdown('### 1. Explore Dataset Features')
-
     # Restore dataset if already in memory
-    st.session_state['house_df'] = df
-
-    # Display dataframe as table
-    st.dataframe(df.describe())
+    st.session_state['data'] = df
 
     ###################### VISUALIZE DATASET #######################
-    st.markdown('### 2. Visualize Features')
+    st.markdown('### 1. Enter your Information')
+    lg_col1, lg_col2 = st.columns(2)
 
-    numeric_columns = list(df.select_dtypes(include='number').columns)
-    #numeric_columns = list(df.select_dtypes(['float','int']).columns)    
-    # Specify Input Parameters
-    st.sidebar.header('Specify Input Parameters')
-
-    # Collect user plot selection
-    st.sidebar.header('Select type of chart')
-    chart_select = st.sidebar.selectbox(
-        label='Type of chart',
-        options=['Scatterplots', 'Lineplots', 'Histogram', 'Boxplot']
-    )
-
-    # Draw plots
-    if chart_select == 'Scatterplots':
-        try:
-            x_values = st.sidebar.selectbox('X axis', options=numeric_columns)
-            y_values = st.sidebar.selectbox('Y axis', options=numeric_columns)
-            side_bar_data = sidebar_filter(
-                df, chart_select, x=x_values, y=y_values)
-            plot = px.scatter(data_frame=df,
-                              x=x_values, y=y_values,
-                              range_x=[side_bar_data[0][0],
-                                       side_bar_data[0][1]],
-                              range_y=[side_bar_data[1][0],
-                                       side_bar_data[1][1]])
-            st.write(plot)
-        except Exception as e:
-            print(e)
-    if chart_select == 'Histogram':
-        try:
-            x_values = st.sidebar.selectbox('X axis', options=numeric_columns)
-            side_bar_data = sidebar_filter(df, chart_select, x=x_values)
-            plot = px.histogram(data_frame=df,
-                                x=x_values,
-                                range_x=[side_bar_data[0][0],
-                                         side_bar_data[0][1]])
-            st.write(plot)
-        except Exception as e:
-            print(e)
-    if chart_select == 'Lineplots':
-        try:
-            x_values = st.sidebar.selectbox('X axis', options=numeric_columns)
-            y_values = st.sidebar.selectbox('Y axis', options=numeric_columns)
-            side_bar_data = sidebar_filter(
-                df, chart_select, x=x_values, y=y_values)
-            plot = px.line(df,
-                           x=x_values,
-                           y=y_values,
-                           range_x=[side_bar_data[0][0],
-                                    side_bar_data[0][1]],
-                           range_y=[side_bar_data[1][0],
-                                    side_bar_data[1][1]])
-            st.write(plot)
-        except Exception as e:
-            print(e)
-    if chart_select == 'Boxplot':
-        try:
-            x_values = st.sidebar.selectbox('X axis', options=numeric_columns)
-            side_bar_data = sidebar_filter(df, chart_select, x=x_values)
-            plot = px.box(df,
-                          x=x_values,
-                          range_x=[side_bar_data[0][0],
-                                   side_bar_data[0][1]])
-            st.write(plot)
-        except Exception as e:
-            print(e)
-
-    # Display original dataframe
-    st.markdown('## 3. View initial data with missing values or invalid inputs')
-    st.dataframe(df)
-
-    numeric_columns = list(df.select_dtypes(['float','int']).columns)
-
-    # Show summary of missing values including 
-    missing_data_summary = summarize_missing_data(df)
-
-    # Remove param
-    st.markdown('### 4. Remove irrelevant/useless features')
-    removed_features = st.multiselect(
-        'Select features',
-        df.columns,
-    )
-    df = remove_features(df, removed_features)
-
-    ########
-    # Display updated dataframe
-    st.dataframe(df)
-
-    # Impute features
-    st.markdown('### 5. Impute data')
-    st.markdown('Transform missing values to 0, mean, or median')
-
-    # Use selectbox to provide impute options {'Zero', 'Mean', 'Median'}
-    impute_method = st.selectbox(
-        'Select imputation method',
-        ('Zero', 'Mean', 'Median','DropNans')
-    )
-
-    # Call impute_dataset function to resolve data handling/cleaning problems
-    df = impute_dataset(df, impute_method)
-    
-    # Display updated dataframe
-    st.markdown('### Result of the imputed dataframe')
-    st.dataframe(df)
-
-############################################# PREPROCESS DATA #############################################
-    # Handling Text and Categorical Attributes
-    st.markdown('### 6. Handling Text and Categorical Attributes')
-    string_columns = list(df.select_dtypes(['object']).columns)
-
-    int_col, one_hot_col = st.columns(2)
-
-    # Perform Integer Encoding
-    with (int_col):
-        text_feature_select_int = st.multiselect(
-            'Select text features for Integer encoding',
-            string_columns,
+    with (lg_col1):
+        SEXVAR = st.selectbox(
+            label='Sex of respondent',
+            options=['Male', 'Female'],
+            key='SEXVAR'
         )
-        if (text_feature_select_int and st.button('Integer Encode feature')):
-            df = integer_encode_feature(df, text_feature_select_int)
-    
-    # Perform One-hot Encoding
-    with (one_hot_col):
-        text_feature_select_onehot = st.multiselect(
-            'Select text features for One-hot encoding',
-            string_columns,
+        X_AGEG5YR = st.selectbox(
+            label='Age Group:',
+            options=['18-24 YO','25-29 YO','30-34 YO','35-39 YO','40-44 YO','45-49 YO','50-54 YO','55-59 YO','60-64 YO','65-69 YO','70-74 YO','75-79 YO','Over 80 YO'],
+            key='X_AGEG5YR'
         )
-        if (text_feature_select_onehot and st.button('One-hot Encode feature')):
-            df = one_hot_encode_feature(df, text_feature_select_onehot)
+        X_RACE = st.selectbox(
+            label='Race/Ethnicity:',
+            options=['White', 'Black','American Indian or Alaskan Native','Asian','Native Hawaiian or other Pacific Islander','Other race','Multirace','Hispanic'],
+            key='X_RACE'
+        )
+        X_EDUCAG = st.selectbox(
+            label='What is your education level?',
+            options=['Did not graduate high school', 'Graduated high school', 'Attended college','Graduated college'],
+            key='X_EDUCAG'
+        )
+        EMPLOY1 = st.selectbox(
+            label='What is your employment status?',
+            options=['Employed', 'Self employed','No work (over an year)','No work (less than an year)','Homemaker','Student','Retired','Unable to work'],
+            key='EMPLOY1'
+        )
+        INCOME3 = st.selectbox(
+            label='What is your annual income?',
+            options=['Less than 10K', '10-15K','15-20K','20-25K','25-35K','35-50K','50-75K','75-100K','100-150K','150-200K','Over 200K'],
+            key='INCOME3'
+        )
+        MARITAL = st.selectbox(
+            label='Marital status',
+            options=['Married', 'Divorced','Widowed','Separated','Never Married','Unmarried Couple'],
+            key='MARITAL'
+        )
+        RENTHOM1 = st.selectbox(
+            label='Home owner status',
+            options=['Own home', 'Rent home','Other home options'],
+            key='RENTHOM1'
+        )
+        PRIMINSR = st.selectbox(
+            label='What is the primary source of your health care coverage?',
+            options=['Employer paid Insurance', 'Self paid Insurance', 'Medicare Insurance', 'Medigap Insurance', 'Medicaid Insurance', 'CHIP Insurance','VA/Military Insurance','Indian Health Service', 'State sponsored health plan', 'Other Insurance', 'No Insurance'],
+            key='PRIMINSR'
+        )
+        CHECKUP1 = st.selectbox(
+            label='how long has it been since you last visited a doctor for a routine checkup?',
+            options=['Last checkup was less than a year ago', 'Last checkup was less than 1-2 years ago', 'Last checkup was less than 3-5 years ago','Last checkup was  Over 5 years ago','Never had a checkup'],
+            key='CHECKUP1'
+        )
+        GENHLTH = st.selectbox(
+            label='Would you say that in general your health is:',
+            options=['Excellent Health', 'Very Good Health', 'Good Health','Fair Health','Poor Health'],
+            key='GENHLTH'
+        )
+        PHYSHLTH14D = st.selectbox(
+            label='Over the last month, how many days has your physical health not been good (due to injury or illness)?',
+            options=['0 Days of bad physical health', '1-13 Days of bad physical health', 'Over 14 Days of bad physical health'],
+            key='PHYSHLTH14D'
+        )
+        MENTHLTH14D = st.selectbox(
+            label='Over the last month, how many days has your mental health not been good (due to stress or depression or other reasons)?',
+            options=['0 Days of bad mental health', '1-13 Days of bad mental health', 'Over 14 Days of bad mental health'],
+            key='MENTHLTH14D'
+        )
+        EXERANY2 = st.selectbox(
+            label='In the past month, did you participate in any physical activities or exercises outside of work?',
+            options=['Exercised', 'Did not exercise'],
+            key='EXERANY2'
+        )
+        X_FRUTSU1DF = st.selectbox(
+            label='How many fruit and fruit products consumed per day?',
+            options=['Less than once a day (Fruit Consumption)', 'Less than twice a day (Fruit Consumption)', 'Less than 5 times a day (Fruit Consumption)','Over 5 times a day (Fruit Consumption)'],
+            key='X_FRUTSU1DF'
+        )
+        X_VEGSU1DF = st.selectbox(
+            label='How many green vegetables and other vegetables (excluding potatoes) consumed per day?',
+            options=['Less than once a day (Vegetable Consumption)', 'Less than twice a day (Vegetable Consumption)', 'Less than 5 times a day (Vegetable Consumption)','Over 5 times a day (Vegetable Consumption)'],
+            key='X_VEGSU1DF'
+        )
+        VACCSTAT = st.selectbox(
+            label='Have you had the flu and pneumonia vaccine?',
+            options=['Both Flu and Pneumonia vaccines', 'Pneumonia vaccine only', 'Flu vaccine only', 'Not vaccinated for either'],
+            key='VACCSTAT'
+        )
+        
 
-    # Show updated dataset
-    st.write(df)
-
-    # Sacling features
-    st.markdown('### 7. Feature Scaling')
-    st.markdown('Use standardarization or normalization to scale features')
-
-    # Use selectbox to provide impute options {'Standardarization', 'Normalization', 'Log'}
-    scaling_method = st.selectbox(
-        'Select feature scaling method',
-        ('Standardarization', 'Normalization', 'Log')
-    )
-
-    numeric_columns = list(df.select_dtypes(['float','int']).columns)
-    scale_features_select = st.multiselect(
-        'Select features to scale',
-        numeric_columns,
-    )
-
-    if (st.button('Scale Features')):
-        # Call scale_features function to scale features
-        if(scaling_method and scale_features_select):
-            df = scale_features(df, scale_features_select, scaling_method)
-
-    # Display updated dataframe
-    st.dataframe(df)
-
-    # Create New Features
-    st.markdown('## 8. Create New Features')
-    st.markdown(
-        'Create new features by selecting two features below and selecting a mathematical operator to combine them.')
-    math_select = st.selectbox(
-        'Select a mathematical operation',
-        ['add', 'subtract', 'multiply', 'divide', 'square root', 'ceil', 'floor'],
-    )
-
-    numeric_columns = list(df.select_dtypes(['float','int']).columns)
-    if (math_select):
-        if (math_select == 'square root' or math_select == 'ceil' or math_select == 'floor'):
-            math_feature_select = st.multiselect(
-                'Select features for feature creation',
-                numeric_columns,
+    with (lg_col2):
+            # Maximum iterations to run the LG until convergence
+        ALCOFREQ = st.selectbox(
+            label='How many days in the last 30 days have you consumed alcohol?',
+            options=['Dont drink (0 days)', 'Occasional drinker (1-7 days)','Frequent drinker (7-14 days)', 'Regular drinker (> 15 days)'],
+            key='ALCOFREQ'
             )
-            sqrt = np.sqrt(df[math_feature_select])
-            if (math_feature_select):
-                new_feature_name = st.text_input('Enter new feature name')
-                if (st.button('Create new feature')):
-                    if (new_feature_name):
-                        df = create_feature(
-                            df, math_select, math_feature_select, new_feature_name)
-                        st.write(df)
-        else:
-            math_feature_select1 = st.selectbox(
-                'Select feature 1 for feature creation',
-                numeric_columns,
-            )
-            math_feature_select2 = st.selectbox(
-                'Select feature 2 for feature creation',
-                numeric_columns,
-            )
-            if (math_feature_select1 and math_feature_select2):
-                new_feature_name = st.text_input('Enter new feature name')
-                if (st.button('Create new feature')):
-                    df = create_feature(df, math_select, [
-                                        math_feature_select1, math_feature_select2], new_feature_name)
-                    st.write(df)
+        X_SMOKER = st.selectbox(
+            label='What is your smoking status?',
+            options=['Current Smoker (Daily)', 'Current Smoker (Some days)','Former Smoker', 'Non Smoker'],
+            key='X_SMOKER'
+        )
+        BPHIGH6 = st.selectbox(
+            label='Ever been told that you have high blood pressure?',
+            options=['Had high BP', 'Had high BP (Pregnant)', 'Did not have high BP','Borderline high BP'],
+            key='BPHIGH6'
+        )
+        CHOLSTAT = st.selectbox(
+            label='Cholesterol Status:',
+            options=['High Cholesterol and take medicine', 'High Cholesterol but do not take Medicine', 'Low Cholesterol and Take medicine','Low Cholesterol and do not take medicine'],
+            key='CHOLSTAT'
+        )
+        X_BMI5CAT = st.selectbox(
+            label='Based on your BMI, are you?',
+            options=['Under weight', 'Normal weight', 'Over weight', 'Obese'],
+            key='X_BMI5CAT'
+        )
+        X_ASTHMS1 = st.selectbox(
+            label='Do you or have you had asthma?',
+            options=['Have asthma currently', 'Had asthma before', 'Never hae had asthma'],
+            key='X_ASTHMS1'
+        )
+        CVDINFR4 = st.selectbox(
+            label='Ever been told that you have had a heart attack or myocardial infarction?',
+            options=['Had a heart attack', 'Did not have a heart attack'],
+            key='CVDINFR4'
+        )
+        CVDCRHD4 = st.selectbox(
+            label='Ever been told that you have had coronary heart disease or angina?',
+            options=['Had coronary heart disease', 'Did not have coronary heart disease'],
+            key='CVDCRHD4'
+        )
+        CVDSTRK3 = st.selectbox(
+            label='Ever been told that you have had a stroke?',
+            options=['Had a stroke', 'Did not have a stroke'],
+            key='CVDSTRK3'
+        )
+        CHCCOPD3 = st.selectbox(
+            label='Ever been told that you have C.O.P.D.(chronic obstructive pulmonary disease), emphysema or chronic bronchitis?',
+            options=['Had COPD', 'Did not have COPD'],
+            key='CHCCOPD3'
+        )
+        ADDEPEV3 = st.selectbox(
+            label='Ever been told that you have a depressive disorder (including depression, major depression, dysthymia, or minor depression)?',
+            options=['Had depressive order', 'Did not have depressive order'],
+            key='ADDEPEV3'
+        )
+        CHCKDNY2 = st.selectbox(
+            label='Ever been told that you have kidney disease (excluding kidney stones, bladder infection and incontinence)?',
+            options=['Had kidney disease', 'Did not have kidney disease'],
+            key='CHCKDNY2'
+        )
+        HAVARTH5 = st.selectbox(
+            label='Ever been told that you have arthritis?',
+            options=['Had arthritis', 'Did not have arthritis'],
+            key='HAVARTH5'
+        )
+        CHCOCNCR = st.selectbox(
+            label='Ever been told that you have cancer?',
+            options=['Had cancer', 'Did not have cancer'],
+            key='CHCOCNCR'
+        )
+        BLIND = st.selectbox(
+            label='Do you have serious difficulty seeing, even when wearing glasses?',
+            options=['Difficulty seeing', 'No difficulty seeing'],
+            key='BLIND'
+        )
+        DECIDE = st.selectbox(
+            label='Do you have serious difficulty concentrating, remembering, or making decisions?',
+            options=['Difficulty deciding', 'No difficulty deciding'],
+            key='DECIDE'
+        )
 
-    st.markdown('### 9. Inspect Features for outliers')
-    outlier_feature_select = None
-    numeric_columns = list(df.select_dtypes(include='number').columns)
-
-    outlier_method_select = st.selectbox(
-        'Select statistics to display',
-        ['IQR', 'STD']
+    ###################### VISUALIZE DATASET #######################
+    st.markdown('### 2. Choose a model') 
+    classification_methods_options = ['Logistic Regression',
+                                      'Logistic Regression (Newton Cholesky)',
+                                      'K Nearest Neighbor',
+                                      'Decision Tree',
+                                      'Random Forest',
+                                      'Naive Bayes',
+                                      'Linear Support Vector Machines']
+    classification_model_select = st.selectbox(
+        label='Select classification model for prediction',
+        options=classification_methods_options,
     )
 
-    outlier_feature_select = st.multiselect(
-        'Select a feature for outlier removal',
-        numeric_columns,
-    )
-    if (outlier_feature_select and st.button('Remove Outliers')):
-        df = remove_outliers(df, outlier_feature_select, outlier_method_select)
-        st.write(df)
+    ###################### VISUALIZE DATASET #######################
+    st.markdown('### 3. Check your results') 
 
-    # Descriptive Statistics 
-    st.markdown('### 10. Summary of Descriptive Statistics')
-
-    stats_numeric_columns = list(df.select_dtypes(['float','int']).columns)
-    stats_feature_select = st.multiselect(
-        'Select features for statistics',
-        stats_numeric_columns,
-    )
-
-    stats_select = st.multiselect(
-        'Select statistics to display',
-        ['Mean', 'Median','Max','Min']
-    )
-            
-    # Compute Descriptive Statistics including mean, median, min, max
-    display_stats, _ = compute_descriptive_stats(df, stats_feature_select, stats_select)
-
-    ###################### CORRELATION ANALYSIS #######################
-    st.markdown("### 11. Correlation Analysis")
-    # Collect features for correlation analysis using multiselect
-    numeric_columns = list(df.select_dtypes(['float','int']).columns)
-
-
-    select_features_for_correlation = st.multiselect(
-        'Select features for visualizing the correlation analysis (up to 4 recommended)',
-        numeric_columns,
-    )
-
-    # Compute correlation between selected features
-    correlation, correlation_summary = compute_correlation(
-        df, select_features_for_correlation)
-    st.write(correlation)
-
-    # Display correlation of all feature pairs
-    if select_features_for_correlation:
-        try:
-            fig = scatter_matrix(
-                df[select_features_for_correlation], figsize=(12, 8))
-            st.pyplot(fig[0][0].get_figure())
-        except Exception as e:
-            print(e)
-
-    st.markdown('#### Continue to Preprocess Data')
+        
+        
+        
+        

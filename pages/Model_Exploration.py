@@ -365,7 +365,7 @@ if df is not None:
     st.write('Number of entries in testing set: {}'.format(X_test.shape[0]))
 
     classification_methods_options = ['Logistic Regression',
-                                      'Logistic Regression (Newton Cholesky)'
+                                      'Logistic Regression (Newton Cholesky)',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
                                       'Random Forest',
