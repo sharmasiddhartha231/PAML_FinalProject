@@ -19,15 +19,17 @@ df = pd.read_csv("Diabetes_Data_Sub_Strict_Main_String_New.txt", sep='\t')
 df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
 df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
 df.DIABETERES[df.DIABETERES == 'Diabetes'] = 1
-cols = df.columns
-cols = cols[0:32]
+df = df[['DIABETERES','X_AGEG5YR']]
+cols = ['X_AGEG5YR']
+#cols = df.columns
+#cols = cols[0:33]
 for i in cols:
   print(i)
   i = pd.get_dummies(df[i], drop_first=False)
   df = pd.concat([df,i], axis=1)
 
 cols_new = df.columns
-cols_new = cols_new[33:168]
+cols_new = cols_new[33:173]
 df = pd.DataFrame(df, columns=cols_new)
 df.columns = df.columns.astype(str)
 #sex = pd.get_dummies(df['X_AGEG5YR'], drop_first=True)
@@ -36,6 +38,7 @@ df.columns = df.columns.astype(str)
 #df = df.iloc[:,33:136]
 
 x_data = df.drop(['DIABETERES'],axis=1)
+x_data = x_data.drop(['X_AGEG5YR'],axis=1)
 y_data = df['DIABETERES']
 y_data=y_data.astype('int')
 x_data = x_data.replace(False,0, regex=True)
@@ -44,11 +47,8 @@ x_data = x_data.replace(True,1, regex=True)
 #enc.fit(x_data)
 
 under = SMOTE(sampling_strategy=1)
-steps = [('u', under)]
-pipeline = Pipeline(steps=steps)
 # transform the dataset
-x_data, y_data = pipeline.fit_resample(x_data, y_data)
-
+x_data, y_data = under.fit_resample(x_data, y_data)
 X_train, X_test, y_train, y_test = train_test_split(x_data, y_data, test_size = 0.3, random_state = 0)
 #X_train = enc.fit_transform(X_train).toarray()
 #X_test = enc.fit_transform(X_test).toarray()
@@ -71,7 +71,8 @@ y_pred = clf.predict(X_test)
 print(classification_report(y_test, y_pred))
 
 #Logistic Regression (from sklearn)
-logmodel = LogisticRegression(penalty='l2', max_iter = 100000, solver = 'newton-cholesky')
+logmodel = SGDClassifier(max_iter = 1000, alpha=0.001)
+logmodel = sklearn.linear_model.LogisticRegression(max_iter = 1000, class_weight='balanced')
 logmodel.fit(X_train, y_train)
 y_pred = logmodel.predict(X_test)
 print(classification_report(y_test, y_pred))

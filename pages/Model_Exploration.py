@@ -17,7 +17,8 @@ from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
 import seaborn as sns
 from sklearn.pipeline import make_pipeline
-
+from sklearn.preprocessing import OneHotEncoder
+from sklearn import metrics
 # set seed=10 to produce consistent results
 random.seed(10)
 
@@ -83,7 +84,10 @@ def split_dataset(df, number, target, input_var, oversample=False,random_state=4
     df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
     df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
     df.DIABETERES[df.DIABETERES == 'Diabetes'] = 1
+    df = df.reset_index(drop=True)
     X, y = df.loc[:, df.columns.isin(input_var)], df.loc[:, df.columns.isin([target])]
+    #enc = OneHotEncoder(handle_unknown='ignore')
+    #enc.fit(X)
     for i in input_var:
         i = pd.get_dummies(X[i], drop_first=False)
         X = pd.concat([X,i], axis=1)
@@ -115,12 +119,14 @@ def compute_evaluation(prediction_labels, true_labels):
     accuracy=0
     sensitivity=0
     specificity=0
+    auc_roc_curve = 0
     # Add code here
     metric_dict = {'Precision': -1,
                    'Sensitivity': -1,
                    'Accuracy': -1,
                    'Specificity': -1,
-                   'Misclassification':-1}
+                   'Misclassification':-1,
+                   'Area under the ROC curve':-1}
     cmatrix = confusion_matrix(true_labels, prediction_labels, labels=[0,1])
     tn, fp, fn, tp = cmatrix.ravel()
     specificity = tn / (tn+fp)
@@ -128,195 +134,122 @@ def compute_evaluation(prediction_labels, true_labels):
     misclassification = (fp + fn)/(tp + tn + fp + fn)
     sensitivity = tp /(tp + fn)
     precision = tp / (tp + fp)
+    fpr, tpr, thresholds = metrics.roc_curve(true_labels, prediction_labels)
+    auc_roc_curve = metrics.auc(fpr, tpr)
+
     metric_dict['Precision'] = precision
     metric_dict['Sensitivity'] = sensitivity
     metric_dict['Accuracy'] = accuracy
     metric_dict['Specificity'] = specificity
     metric_dict['Misclassification'] = misclassification
+    metric_dict['Area under the ROC curve'] = auc_roc_curve
     return metric_dict
 
-class LogisticRegression(object):
-    def __init__(self, learning_rate=0.001, num_iterations=500): 
+class LogisticRegression_GD(object):
+    def __init__(self, learning_rate=0.001, num_iterations=1000): 
         self.learning_rate = learning_rate 
         self.num_iterations = num_iterations 
         self.likelihood_history=[]
-    
-    # Checkpoint 5
     def predict_probability(self, X):
-        '''
-        Produces probabilistic estimate for P(y_i = +1 | x_i, w)
-            Estimate ranges between 0 and 1.
-        Input:
-            - X: Input features
-            - W: weights/coefficients of logistic regression model
-            - b: bias or y-intercept of logistic regression classifier
-        Output:
-            - y_pred: probability of positive product review
-        '''
-        y_pred=None
-        # Take dot product of feature_matrix and coefficients  
-        # Add code here
-        #num_features, num_examples = X.shape
-        score = np.dot(X, self.W) +self.b
-        # Add code here   
-        y_pred = 1. / (1.+np.exp(-score))    
+        score = np.dot(X, self.W) + self.b
+        y_pred = 1. / (1.+np.exp(-score)) 
         return y_pred
-    
-    # Checkpoint 6
     def compute_avg_log_likelihood(self, X, Y, W):
-        '''
-        Compute the average log-likelihood of logistic regression coefficients
-
-        Input
-            - X: subset of features in dataset
-            - Y: true sentiment of inputs
-            - W: logistic regression weights
-        Output
-            - lp: log likelihood estimation
-        '''
-        lp=None
-        # Add code here
-        indicator = (Y==+1)
-        scores = np.dot(X, W)
-        logexp = np.log(1. + np.exp(-scores))
-        mask = np.isinf(logexp)
-        logexp[mask] = -scores[mask]
-        lp = np.sum((indicator-1)*scores - logexp)/len(X)
+        #indicator = (Y==+1)
+        #scores = np.dot(X, W) 
+        #logexp = np.log(1. + np.exp(-scores))
+        #mask = np.isinf(logexp)
+        #logexp[mask] = -scores[mask]
+        #lp = np.sum((indicator-1)*scores - logexp)/len(X)
+        scores = np.dot(X, W) 
+        score = 1 / (1 + np.exp(-scores))
+        y1 = (Y * np.log(score))
+        y2 = (1-Y) * np.log(1 - score)
+        lp = -np.mean(y1 + y2)
         return lp
-    
-    # Checkpoint 7
     def update_weights(self):      
-        '''
-        Compute the logistic regression derivative using 
-        gradient ascent and update weights self.W
-
-        Inputs: None
-        Output: None
-        '''
         num_examples, num_features = self.X.shape
         y_pred = self.predict(self.X)
         dW = self.X.T.dot(self.Y-y_pred) / num_examples 
         db = np.sum(self.Y-y_pred) / num_examples 
         self.b = self.b + self.learning_rate * db
         self.W = self.W + self.learning_rate * dW
-        #for i in range(len(self.W)):
-        #    y_pred = 1 / (1 + np.exp(-(self.X[:,i].dot(self.W[i]) + self.b))) 
-        log_likelihood = self.compute_avg_log_likelihood(self.X, self.Y, self.W)
+        log_likelihood=0
+        log_likelihood += self.compute_avg_log_likelihood(self.X, self.Y, self.W)
         self.likelihood_history.append(log_likelihood)
-        return self
-    
-    # Checkpoint 8
     def predict(self, X):
-        '''
-        Hypothetical function  h(x)
-        Input: 
-            - X: Input features
-            - W: weights/coefficients of logistic regression model
-            - b: bias or y-intercept of logistic regression classifier
-        Output:
-            - Y: list of predicted classes 
-        '''
-        y_pred=0
-        # Add code here
-        Z = 1 / (1 + np.exp(- (self.X.dot(self.W) + self.b)))
-        y_pred = [-1 if z <= 0.5 else +1 for z in Z]
+        y_pred= 0
+        scores = 1 / (1 + np.exp(- (X.dot(self.W) + self.b)))
+        y_pred = [0 if z <= 0.5 else +1 for z in scores]
         return y_pred 
-    
-    # Checkpoint 9
     def fit(self, X, Y):   
-        '''
-        Run gradient ascent to fit features to data using logistic regression 
-        Input: 
-            - X: Input features
-            - Y: list of actual product sentiment classes 
-            - num_iterations: # of iterations to update weights using gradient ascent
-            - learning_rate: learning rate
-        Output: None
-        '''
-        # Add code here
         self.X = X
         self.Y = Y
         num_examples, num_features = self.X.shape    
-        W = np.zeros(num_features)
-        self.W = W
-        b = 0
-        self.b = b
-        for _ in range(self.num_iterations):          
-            self.update_weights()   
-        return self
-
-    # Checkpoint 10
-    def get_weights(self, model_name):
-        '''
-        This function prints the coefficients of the trained models
-        
-        Input:
-            - model_name (list of strings): list of model names including: 'Logistic Regression', 'Stochastic Gradient Ascent with Logistic Regression' 
-        Output:
-            - out_dict: a dicionary contains the coefficients of the selected models, with the following keys:
-            - 'Logistic Regression'
-            - 'Stochastic Gradient Ascent with Logistic Regression'
-        '''
-        out_dict = {'Logistic Regression': [],
-                    'Stochastic Gradient Ascent with Logistic Regression': []}
-        
-        # Add code here
-        weights = self.fit(self.X, self.Y)
-        if model_name == 'Logistic Regression':
-            out_dict['Logistic Regression'] = weights
-        if model_name == 'Stochastic Gradient Ascent with Logistic Regression':
-            out_dict['Stochastic Gradient Ascent with Logistic Regression'] = weights
-        return out_dict
-
-#class StochasticLogisticRegression(LogisticRegression):
-    #def __init__(self, num_iterations, learning_rate, batch_size): 
+        self.W = np.zeros(num_features)
+        self.b = 0
         self.likelihood_history=[]
-        self.batch_size=batch_size
+        for _ in range(self.num_iterations):          
+            self.update_weights()  
+    def get_weights(self):
+            out_dict = {'Logistic Regression': []}
+            W = np.array([f for f in self.W])
+            out_dict['Logistic Regression'] = self.W
+            return out_dict
 
-        # invoking the __init__ of the parent class
-        LogisticRegression.__init__(self, learning_rate, num_iterations)
 
-    # Checkpoint 11
-    #def fit(self, X, Y):
-        '''
-        Run mini-batch stochastic gradient ascent to fit features to data using logistic regression 
-
-        Input
-            - X: input features
-            - Y: target variable (product sentiment)
-        Output: None
-        '''
-        # Add code here
-        permutation = np.random.permutation(len(X))
-        self.X = X[permutation,:]
-        self.Y = Y[permutation]
-        self.num_features, self.num_examples = self.X.shape    
-        W = np.zeros(self.num_examples)
-        self.W = W
-        b = 0
-        self.b = b
-        likelihood_history = []
-        i = 0 
-        self.likelihood_history = likelihood_history 
-        for itr in range(self.num_iterations):
-            predictions = self.predict_probability(self.X[i:i+self.batch_size,:])
-            indicator = (self.Y[i:i+self.batch_size]==+1)
-            errors = indicator - predictions
-            for j in range(len(self.W)):
-                dW = errors.dot(self.X[i:i+self.batch_size,j].T)
-                self.W[j] += self.learning_rate * dW 
-            lp = self.compute_avg_log_likelihood(self.X[i:i+self.batch_size,:], Y[i:i+self.batch_size],
-                                        self.W)
-            self.likelihood_history.append(lp)
-            i += self.batch_size
-            if i+self.batch_size > len(self.X):
-                permutation = np.random.permutation(len(self.X))
-                self.X = self.X[permutation,:]
-                self.Y = self.Y[permutation]
-                i = 0
-        # Learning rate schedule
-            self.learning_rate=self.learning_rate/1.02
-        return self
+##Tried using Weighted Logistic Regression to calculate odds ratio but did not work correctly with the Gradient Descent Method so ended up using the sklearn Logistic Regression Methodology.
+#class WeightedLogisticRegression(object):
+#    def __init__(self, learning_rate=0.001, num_iterations=1000): 
+#        self.learning_rate = learning_rate 
+#        self.num_iterations = num_iterations 
+#        self.likelihood_history=[]
+#    def predict_probability(self, X):
+#        score = np.dot(X, self.W) + self.b
+#        y_pred = 1. / (1.+np.exp(-score)) 
+#        return y_pred
+#    def compute_avg_log_likelihood(self, X, Y, W):
+        #indicator = (Y==+1)
+        #scores = np.dot(X, W) 
+        #logexp = np.log(1. + np.exp(-scores))
+        #mask = np.isinf(logexp)
+        #logexp[mask] = -scores[mask]
+        #lp = np.sum((indicator-1)*scores - logexp)/len(X)
+#        scores = np.dot(X, W) 
+#        score = 1 / (1 + np.exp(-scores))
+#        y1 = 3.33 *(Y * np.log(score))
+#        y2 = 0.59 * (1-Y) * np.log(1 - score)
+#        lp = -np.mean(y1 + y2)
+#        return lp
+#    def update_weights(self):      
+#        num_examples, num_features = self.X.shape
+#        y_pred = self.predict(self.X)
+#        dW = self.X.T.dot(self.Y-y_pred) / num_examples 
+#        db = np.sum(self.Y-y_pred) / num_examples 
+#        self.b = self.b + self.learning_rate * db
+#        self.W = self.W + self.learning_rate * dW
+#        log_likelihood=0
+#        log_likelihood += self.compute_avg_log_likelihood(self.X, self.Y, self.W)
+#        self.likelihood_history.append(log_likelihood)
+#    def predict(self, X):
+#        y_pred= 0
+#        scores = 1 / (1 + np.exp(- (X.dot(self.W) + self.b)))
+#        y_pred = [0 if z <= 0.5 else +1 for z in scores]
+#        return y_pred 
+#    def fit(self, X, Y):   
+#        self.X = X
+#        self.Y = Y
+#        num_examples, num_features = self.X.shape    
+#        self.W = np.zeros(num_features)
+#        self.b = 0
+#        self.likelihood_history=[]
+#        for _ in range(self.num_iterations):          
+#            self.update_weights()  
+#    def get_weights(self):
+#            out_dict = {'Logistic Regression': []}
+            W = np.array([f for f in self.W])
+            out_dict['Logistic Regression'] = self.W
+            return out_dict
 
 ###################### FETCH DATASET #######################
 df = None
@@ -394,7 +327,7 @@ if df is not None:
         with (lg_col1):
             lg_learning_rate_input = st.text_input(
                 label='Input learning rate 👇',
-                value='0.0001',
+                value='0.001',
                 key='lg_learning_rate_textinput'
             )
             st.write('You select the following learning rate value(s): {}'.format(lg_learning_rate_input))
@@ -403,9 +336,9 @@ if df is not None:
             # Maximum iterations to run the LG until convergence
             lg_num_iterations = st.number_input(
                 label='Enter the number of maximum iterations on training data',
-                min_value=1,
-                max_value=5000000,
-                value=500,
+                min_value=1000,
+                max_value=100000,
+                value=1000,
                 step=100,
                 key='lg_max_iter_numberinput'
             )
@@ -415,38 +348,41 @@ if df is not None:
             'num_iterations': lg_num_iterations,
             'learning_rate': [float(val) for val in lg_learning_rate_input.split(',')],
         }
-        if st.button('Logistic Regression Model'):
-            try:
-                lg_model = LogisticRegression(num_iterations=lg_params['num_iterations'], 
-                                            learning_rate=lg_params['learning_rate'][0])
-                lg_model.fit(X_train.to_numpy(), np.ravel(y_train))
-                st.session_state[classification_methods_options[0]] = lg_model
-            except ValueError as err:
-                st.write({str(err)})
-        
-        if classification_methods_options[0] not in st.session_state:
-            st.write('Logistic Regression Model is untrained')
-        else:
-            st.write('Logistic Regression Model trained')
-
+        lg_model = LogisticRegression_GD(num_iterations=lg_params['num_iterations'], learning_rate=lg_params['learning_rate'][0])
+        lg_model.fit(X_train, y_train)
+        st.write('Logistic Regression Model trained')
+        y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity', 'Misclassification'] 
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
         evaluation_metric_select = st.multiselect(
         label='Select evaluation metric for current model',
         options=evaluation_options,
         key='evaluation_select'
         )
         st.session_state['evaluation'] = evaluation_metric_select
-        if evaluation_metric_select in evaluation_options:
-            Metric_data = compute_evaluation(y_pred, y_test, evaluation_metric_select)
+        
+        Metric_data = compute_evaluation(y_pred, y_test)
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
+        if 'Area under the ROC curve' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
 
 if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[1])
-        ml_model = LogisticRegression(penalty='l2', max_iter = 100000, solver = 'newton-cholesky')
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_test)
+        lg_model = LogisticRegression(penalty = 'l2',max_iter = 100000, class_weight='balanced', solver = 'newton-cholesky')
+        lg_model.fit(X_train, y_train)
+        y_pred = lg_model.predict(X_test)
+
         st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
         evaluation_metric_select = st.multiselect(
         label='Select evaluation metric for current model',
         options=evaluation_options,
@@ -464,39 +400,44 @@ if (classification_methods_options[1] == classification_model_select):# or class
            st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
         if 'Misclassification' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
+        if 'Area under the ROC curve' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
 
 if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[2])
-
-        ml_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_test)
+        lg_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
+        lg_model.fit(X_train, y_train)
+        st.write('K Nearest Neighbor Model trained')
+        y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
         evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
-        )
+            label='Select evaluation metric for current model',
+            options=evaluation_options,
+            key='evaluation_select'
+            )
         st.session_state['evaluation'] = evaluation_metric_select
         Metric_data = compute_evaluation(y_pred, y_test)
         if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+            st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
         if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
         if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
         if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
+        if 'Area under the ROC curve' in evaluation_metric_select:
+            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        
 
 if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[3])
-
-        ml_model = DecisionTreeClassifier()
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_test)
+        lg_model = DecisionTreeClassifier()
+        lg_model.fit(X_train, y_train)
+        st.write('Decision Tree Model trained')
+        y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
         evaluation_metric_select = st.multiselect(
@@ -516,13 +457,15 @@ if (classification_methods_options[3] == classification_model_select):# or class
            st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
         if 'Misclassification' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+        if 'Area under the ROC curve' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
 
 if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[4])
-
-        ml_model = RandomForestClassifier(random_state=0)
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_test)
+        lg_model = RandomForestClassifier(random_state=0)
+        lg_model.fit(X_train, y_train)
+        st.write('Random Forest Model trained')
+        y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
         evaluation_metric_select = st.multiselect(
@@ -542,13 +485,15 @@ if (classification_methods_options[4] == classification_model_select):# or class
            st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
         if 'Misclassification' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+        if 'Area under the ROC curve' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
 
 if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[5])
-
-        ml_model = GaussianNB()
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_test)
+        lg_model = GaussianNB()
+        lg_model.fit(X_train, y_train)
+        st.write('Gaussian Naive Bayes Model trained')
+        y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
         evaluation_metric_select = st.multiselect(
@@ -568,13 +513,15 @@ if (classification_methods_options[5] == classification_model_select):# or class
            st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
         if 'Misclassification' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+        if 'Area under the ROC curve' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
 
 if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[6])
-
-        ml_model = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_test)
+        lg_model = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
+        lg_model.fit(X_train, y_train)
+        st.write('Linear Support Vector Machine Model trained')
+        y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
         evaluation_metric_select = st.multiselect(
@@ -583,6 +530,7 @@ if (classification_methods_options[6] == classification_model_select):# or class
         key='evaluation_select'
         )
         st.session_state['evaluation'] = evaluation_metric_select
+        
         Metric_data = compute_evaluation(y_pred, y_test)
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
@@ -594,3 +542,5 @@ if (classification_methods_options[6] == classification_model_select):# or class
            st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
         if 'Misclassification' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
+        if 'Area under the ROC curve' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))

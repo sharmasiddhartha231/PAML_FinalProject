@@ -1,11 +1,23 @@
-import streamlit as st
+import numpy as np                    
+from sklearn.model_selection import train_test_split
+import streamlit as st                  
+import random
+from helper_functions import fetch_dataset, set_pos_neg_reviews
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
-import plotly.express as px
-from pandas.plotting import scatter_matrix
-import os
-from itertools import combinations
-import numpy as np
-from sklearn.preprocessing import OrdinalEncoder
+from imblearn.over_sampling import SMOTE
+from sklearn.metrics import confusion_matrix
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler
+import seaborn as sns
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import OneHotEncoder
 
 #############################################
 
@@ -27,6 +39,51 @@ def load_dataset(filepath):
     st.session_state['data'] = data
     return data
 
+def split_dataset_predict(df, number, input_row,random_state=42):
+    """
+    This function splits the dataset into the training and test sets.
+
+    Input:
+        - X: training features
+        - y: training targets
+        - number: the ratio of test samples
+        - target: article feature name 'rating'
+        - feature_encoding: (string) 'Word Count' or 'TF-IDF' encoding
+        - random_state: determines random number generation for centroid initialization
+    Output:
+        - X_train_sentiment: training features (word encoded)
+        - X_val_sentiment: test/validation features (word encoded)
+        - y_train: training targets
+        - y_val: test/validation targets
+    """
+    X_train = []
+    y_train = []
+    
+    # Add code here
+    df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
+    df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
+    df.DIABETERES[df.DIABETERES == 'Diabetes'] = 1
+    df = df.reset_index(drop=True)
+    X, y = df.loc[:, ~df.columns.isin(['DIABETERES'])], df.loc[:, df.columns.isin(['DIABETERES'])]
+    X = pd.concat([y, pd.DataFrame([input_row])], ignore_index=True) 
+    col_vals = X.columns
+    for i in col_vals:
+        i = pd.get_dummies(X[i], drop_first=False)
+        X = pd.concat([X,i], axis=1)
+    X = X.loc[:, ~X.columns.isin(col_vals)]
+    X.columns = X.columns.astype(str)
+    X = X.replace(False,0, regex=True)
+    X = X.replace(True,1, regex=True)
+    y=y.astype('int')
+    X_predict = X.tail(1)
+    X.drop(X.tail(1).index,inplace=True)
+    over = SMOTE(sampling_strategy=1)
+    # transform the dataset
+    X, y = over.fit_resample(X, y)
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    return X_train, y_train, X_predict
+
 ###################### FETCH DATASET #######################
 df = None
 if('data' in st.session_state):
@@ -47,7 +104,6 @@ if df is not None:
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 1. Enter your Information')
     lg_col1, lg_col2 = st.columns(2)
-
     with (lg_col1):
         SEXVAR = st.selectbox(
             label='Sex of respondent',
@@ -134,8 +190,7 @@ if df is not None:
             options=['Both Flu and Pneumonia vaccines', 'Pneumonia vaccine only', 'Flu vaccine only', 'Not vaccinated for either'],
             key='VACCSTAT'
         )
-        
-
+    
     with (lg_col2):
             # Maximum iterations to run the LG until convergence
         ALCOFREQ = st.selectbox(
@@ -143,10 +198,10 @@ if df is not None:
             options=['Dont drink (0 days)', 'Occasional drinker (1-7 days)','Frequent drinker (7-14 days)', 'Regular drinker (> 15 days)'],
             key='ALCOFREQ'
             )
-        X_SMOKER = st.selectbox(
+        X_SMOKE = st.selectbox(
             label='What is your smoking status?',
             options=['Current Smoker (Daily)', 'Current Smoker (Some days)','Former Smoker', 'Non Smoker'],
-            key='X_SMOKER'
+            key='X_SMOKE'
         )
         BPHIGH6 = st.selectbox(
             label='Ever been told that you have high blood pressure?',
@@ -218,6 +273,39 @@ if df is not None:
             options=['Difficulty deciding', 'No difficulty deciding'],
             key='DECIDE'
         )
+    
+    input_row = {'EXERANY2':EXERANY2,
+                     'BPHIGH6':BPHIGH6,
+                     'CVDINFR4':CVDINFR4,
+                     'CVDCRHD4':CVDCRHD4,
+                     'CVDSTRK3':CVDSTRK3,
+                     'CHCCOPD3':CHCCOPD3,
+                     'ADDEPEV3':ADDEPEV3,
+                     'CHCKDNY2':CHCKDNY2,
+                     'HAVARTH5':HAVARTH5,
+                     'MARITAL':MARITAL,
+                     'RENTHOM1':RENTHOM1,
+                     'EMPLOY1':EMPLOY1,
+                     'INCOME3':INCOME3,
+                     'BLIND':BLIND,
+                     'DECIDE':DECIDE,
+                     'X_AGEG5YR':X_AGEG5YR,
+                     'X_RACE':X_RACE,
+                     'X_EDUCAG':X_EDUCAG,
+                     'X_SMOKE':X_SMOKE,
+                     'X_ASTHMS1':X_ASTHMS1,
+                     'X_BMI5CAT':X_BMI5CAT,
+                     'CHCOCNCR':CHCOCNCR,
+                     'PHYSHLTH14D':PHYSHLTH14D,
+                     'MENTHLTH14D':MENTHLTH14D,
+                     'ALCOFREQ':ALCOFREQ,
+                     'VACCSTAT':VACCSTAT,
+                     'CHOLSTAT':CHOLSTAT,
+                     'X_FRUTSU1DF':X_FRUTSU1DF,
+                     'X_VEGSU1DF':X_VEGSU1DF
+                    }   
+    
+    X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
 
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 2. Choose a model') 
@@ -232,9 +320,49 @@ if df is not None:
         label='Select classification model for prediction',
         options=classification_methods_options,
     )
+    if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[1])
+        ml_model = LogisticRegression(penalty='l2', max_iter = 100000, solver = 'newton-cholesky')
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_predict)
+        
+    if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[2])
+        ml_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_predict)
+
+    if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[3])
+        ml_model = DecisionTreeClassifier()
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_predict)
+       
+    if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[4])
+        ml_model = RandomForestClassifier(random_state=0)
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_test)
+     
+    if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[5])
+        ml_model = GaussianNB()
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_predict)
+        
+    if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[6])
+        ml_model = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_predict)
 
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 3. Check your results') 
+    if y_pred == 0:
+       st.markdown('### The model predicts you do not have Diabetes.')
+    if y_pred == 1:
+       st.markdown('### The model predicts you do have Diabetes.')
+
 
         
         
