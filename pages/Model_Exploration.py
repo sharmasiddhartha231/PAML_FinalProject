@@ -19,6 +19,7 @@ import seaborn as sns
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn import metrics
+import matplotlib.pyplot as plt
 # set seed=10 to produce consistent results
 random.seed(10)
 
@@ -29,7 +30,9 @@ st.title('Model Exploration')
 #############################################
 
 st.markdown("""Welcome to the **Model Exploration** section where you can test the various machine learning models we have built by yourself using any selection of parameters and see they perform. The following machine learning models are available for you to work with:
-- Logistic Regression
+- Logistic Regression using Gradient Descent
+- Logistic Regression using Stochastic Gradient Descent
+- Regularized Logistic Regression 
 - K Nearest Neighbors
 - Naive Bayes
 - Decision Tree
@@ -47,34 +50,17 @@ def fetch_dataset():
     """
     # Check stored data
     df = None
-    data = None
     if 'data' in st.session_state:
         df = st.session_state['data']
     else:
-        data = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
-        df = pd.read_csv(data, sep='\t')
+        filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
+        df = pd.read_csv(filepath, sep='\t')
     if df is not None:
-        st.session_state['diabetes'] = df
+        st.session_state['data'] = df
     return df
 
 # Checkpoint 4
 def split_dataset(df, number, target, input_var, oversample=False,random_state=42):
-    """
-    This function splits the dataset into the training and test sets.
-
-    Input:
-        - X: training features
-        - y: training targets
-        - number: the ratio of test samples
-        - target: article feature name 'rating'
-        - feature_encoding: (string) 'Word Count' or 'TF-IDF' encoding
-        - random_state: determines random number generation for centroid initialization
-    Output:
-        - X_train_sentiment: training features (word encoded)
-        - X_val_sentiment: test/validation features (word encoded)
-        - y_train: training targets
-        - y_val: test/validation targets
-    """
     X_train = []
     X_test = []
     y_train = []
@@ -105,7 +91,7 @@ def split_dataset(df, number, target, input_var, oversample=False,random_state=4
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
     return X_train, X_test, y_train, y_test
 
-def compute_evaluation(prediction_labels, true_labels):    
+def compute_evaluation(prediction_labels, true_labels, estimator_name):    
     '''
     Compute classification accuracy
     Input
@@ -119,7 +105,7 @@ def compute_evaluation(prediction_labels, true_labels):
     accuracy=0
     sensitivity=0
     specificity=0
-    auc_roc_curve = 0
+    auc_roc = 0
     # Add code here
     metric_dict = {'Precision': -1,
                    'Sensitivity': -1,
@@ -135,15 +121,16 @@ def compute_evaluation(prediction_labels, true_labels):
     sensitivity = tp /(tp + fn)
     precision = tp / (tp + fp)
     fpr, tpr, thresholds = metrics.roc_curve(true_labels, prediction_labels)
-    auc_roc_curve = metrics.auc(fpr, tpr)
+    auc_roc= metrics.auc(fpr, tpr)
+    display = metrics.RocCurveDisplay(fpr=fpr, tpr=tpr, roc_auc=auc_roc,estimator_name=estimator_name)
 
     metric_dict['Precision'] = precision
     metric_dict['Sensitivity'] = sensitivity
     metric_dict['Accuracy'] = accuracy
     metric_dict['Specificity'] = specificity
     metric_dict['Misclassification'] = misclassification
-    metric_dict['Area under the ROC curve'] = auc_roc_curve
-    return metric_dict
+    metric_dict['Area under the ROC curve'] = auc_roc
+    return metric_dict, display
 
 class LogisticRegression_GD(object):
     def __init__(self, learning_rate=0.001, num_iterations=1000): 
@@ -196,7 +183,6 @@ class LogisticRegression_GD(object):
             W = np.array([f for f in self.W])
             out_dict['Logistic Regression'] = self.W
             return out_dict
-
 
 ##Tried using Weighted Logistic Regression to calculate odds ratio but did not work correctly with the Gradient Descent Method so ended up using the sklearn Logistic Regression Methodology.
 #class WeightedLogisticRegression(object):
@@ -251,14 +237,60 @@ class LogisticRegression_GD(object):
             out_dict['Logistic Regression'] = self.W
             return out_dict
 
+class LogisticRegression_SGD(LogisticRegression):
+    def __init__(self, num_iterations, learning_rate, batch_size): 
+        self.likelihood_history=[]
+        self.batch_size=batch_size
+
+        # invoking the __init__ of the parent class
+        LogisticRegression.__init__(self, learning_rate, num_iterations)
+
+    # Checkpoint 11
+    def fit(self, X, Y):
+        '''
+        Run mini-batch stochastic gradient ascent to fit features to data using logistic regression 
+
+        Input
+            - X: input features
+            - Y: target variable (product sentiment)
+        Output: None
+        '''
+        # Add code here
+        permutation = np.random.permutation(len(X))
+        self.X = X[permutation,:]
+        self.Y = Y[permutation]
+        self.num_features, self.num_examples = self.X.shape    
+        W = np.zeros(self.num_examples)
+        self.W = W
+        b = 0
+        self.b = b
+        likelihood_history = []
+        i = 0 
+        self.likelihood_history = likelihood_history 
+        for itr in range(self.num_iterations):
+            predictions = self.predict_probability(self.X[i:i+self.batch_size,:])
+            indicator = (self.Y[i:i+self.batch_size]==+1)
+            errors = indicator - predictions
+            for j in range(len(self.W)):
+                dW = errors.dot(self.X[i:i+self.batch_size,j].T)
+                self.W[j] += self.learning_rate * dW 
+            lp = self.compute_avg_log_likelihood(self.X[i:i+self.batch_size,:], Y[i:i+self.batch_size],
+                                        self.W)
+            self.likelihood_history.append(lp)
+            i += self.batch_size
+            if i+self.batch_size > len(self.X):
+                permutation = np.random.permutation(len(self.X))
+                self.X = self.X[permutation,:]
+                self.Y = self.Y[permutation]
+                i = 0
+        # Learning rate schedule
+            self.learning_rate=self.learning_rate/1.02
+
 ###################### FETCH DATASET #######################
 df = None
 df = fetch_dataset()
 
 if df is not None:
-
-    # Display dataframe as table
-    #st.dataframe(df)
     feature_predict_select = 'DIABETERES'
     # Select input features
     feature_input_select = st.multiselect(
@@ -297,8 +329,9 @@ if df is not None:
     st.write('Number of entries in training set: {}'.format(X_train.shape[0]))
     st.write('Number of entries in testing set: {}'.format(X_test.shape[0]))
 
-    classification_methods_options = ['Logistic Regression',
-                                      'Logistic Regression (Newton Cholesky)',
+    classification_methods_options = ['Logistic Regression using Gradient Descent',
+                                      'Logistic Regression using Stochastic Gradient Descent'
+                                      'Regularized Logistic Regression',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
                                       'Random Forest',
@@ -350,7 +383,7 @@ if df is not None:
         }
         lg_model = LogisticRegression_GD(num_iterations=lg_params['num_iterations'], learning_rate=lg_params['learning_rate'][0])
         lg_model.fit(X_train, y_train)
-        st.write('Logistic Regression Model trained')
+        st.write('Logistic Regression Model using Gradient Descent trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
@@ -361,7 +394,7 @@ if df is not None:
         )
         st.session_state['evaluation'] = evaluation_metric_select
         
-        Metric_data = compute_evaluation(y_pred, y_test)
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[0])
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
@@ -374,13 +407,58 @@ if df is not None:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
         if 'Area under the ROC curve' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)
 
-if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[1])
-        lg_model = LogisticRegression(penalty = 'l2',max_iter = 100000, class_weight='balanced', solver = 'newton-cholesky')
+if (classification_methods_options[1] in classification_model_select):
+        st.markdown('#### ' + classification_methods_options[1])
+
+        # Number of iterations: maximum iterations to run the iterative SGD
+        sdg_num_iterations = st.number_input(
+            label='Enter the number of maximum iterations on training data',
+            min_value=1,
+            max_value=5000,
+            value=500,
+            step=100,
+            key='sgd_num_iterations_numberinput'
+        )
+        st.write('You set the maximum iterations to: {}'.format(sdg_num_iterations))
+
+        # learning_rate: Constant that multiplies the regularization term. Ranges from [0 Inf)
+        sdg_learning_rate = st.text_input(
+            label='Input one alpha value',
+            value='0.001',
+            key='sdg_learning_rate_numberinput'
+        )
+        sdg_learning_rate = float(sdg_learning_rate)
+        st.write('You selected the following learning rate: {}'.format(sdg_learning_rate))
+
+        # tolerance: stopping criteria for iterations
+        sgd_batch_size = st.text_input(
+            label='Input a batch size value',
+            value='50',
+            key='sgd_batch_size_textinput'
+        )
+        sgd_batch_size = int(sgd_batch_size)
+        st.write('You selected the following batch_size: {}'.format(sgd_batch_size))
+
+        sgd_params = {
+            'num_iterations': sdg_num_iterations,
+            'batch_size': sgd_batch_size,
+            'learning_rate': sdg_learning_rate,
+        }
+
+        lg_model = LogisticRegression_SGD(num_iterations=sgd_params['num_iterations'], learning_rate=sgd_params['learning_rate'],batch_size=sgd_params['batch_size'])
         lg_model.fit(X_train, y_train)
+        st.write('Logistic Regression Model using Stochastic Gradient Descent trained')
         y_pred = lg_model.predict(X_test)
-
         st.markdown('### Evaluate your model')
         evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
         evaluation_metric_select = st.multiselect(
@@ -389,7 +467,7 @@ if (classification_methods_options[1] == classification_model_select):# or class
         key='evaluation_select'
         )
         st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data = compute_evaluation(y_pred, y_test)
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[2])
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
@@ -402,9 +480,56 @@ if (classification_methods_options[1] == classification_model_select):# or class
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
         if 'Area under the ROC curve' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)
+
 
 if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[2])
+        lg_model = LogisticRegression(penalty = 'l2',max_iter = 100000, class_weight='balanced', solver = 'newton-cholesky')
+        lg_model.fit(X_train, y_train)
+        st.write('Regularized Logistic Regression Model Model trained')
+        y_pred = lg_model.predict(X_test)
+        st.markdown('### Evaluate your model')
+        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
+        evaluation_metric_select = st.multiselect(
+        label='Select evaluation metric for current model',
+        options=evaluation_options,
+        key='evaluation_select'
+        )
+        st.session_state['evaluation'] = evaluation_metric_select
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[2])
+        if 'Accuracy' in evaluation_metric_select:
+           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+        if 'Precision' in evaluation_metric_select:
+           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
+        if 'Sensitivity' in evaluation_metric_select:
+           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+        if 'Specificity' in evaluation_metric_select:
+           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+        if 'Misclassification' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
+        if 'Area under the ROC curve' in evaluation_metric_select:
+           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)
+
+if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[3])
         lg_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
         lg_model.fit(X_train, y_train)
         st.write('K Nearest Neighbor Model trained')
@@ -417,7 +542,7 @@ if (classification_methods_options[2] == classification_model_select):# or class
             key='evaluation_select'
             )
         st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data = compute_evaluation(y_pred, y_test)
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[3])
         if 'Accuracy' in evaluation_metric_select:
             st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
@@ -430,10 +555,18 @@ if (classification_methods_options[2] == classification_model_select):# or class
             st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
         if 'Area under the ROC curve' in evaluation_metric_select:
             st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)
 
-if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[3])
+if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[4])
         lg_model = DecisionTreeClassifier()
         lg_model.fit(X_train, y_train)
         st.write('Decision Tree Model trained')
@@ -446,7 +579,7 @@ if (classification_methods_options[3] == classification_model_select):# or class
         key='evaluation_select'
         )
         st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data = compute_evaluation(y_pred, y_test)
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[4])
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
@@ -459,9 +592,18 @@ if (classification_methods_options[3] == classification_model_select):# or class
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
         if 'Area under the ROC curve' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)
 
-if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[4])
+if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[5])
         lg_model = RandomForestClassifier(random_state=0)
         lg_model.fit(X_train, y_train)
         st.write('Random Forest Model trained')
@@ -474,7 +616,7 @@ if (classification_methods_options[4] == classification_model_select):# or class
         key='evaluation_select'
         )
         st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data = compute_evaluation(y_pred, y_test)
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[5])
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
@@ -487,9 +629,18 @@ if (classification_methods_options[4] == classification_model_select):# or class
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
         if 'Area under the ROC curve' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)
 
-if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[5])
+if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[6])
         lg_model = GaussianNB()
         lg_model.fit(X_train, y_train)
         st.write('Gaussian Naive Bayes Model trained')
@@ -502,7 +653,7 @@ if (classification_methods_options[5] == classification_model_select):# or class
         key='evaluation_select'
         )
         st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data = compute_evaluation(y_pred, y_test)
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[6])
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
@@ -515,9 +666,19 @@ if (classification_methods_options[5] == classification_model_select):# or class
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
         if 'Area under the ROC curve' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)
 
-if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[6])
+
+if (classification_methods_options[7] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[7])
         lg_model = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
         lg_model.fit(X_train, y_train)
         st.write('Linear Support Vector Machine Model trained')
@@ -531,7 +692,7 @@ if (classification_methods_options[6] == classification_model_select):# or class
         )
         st.session_state['evaluation'] = evaluation_metric_select
         
-        Metric_data = compute_evaluation(y_pred, y_test)
+        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[7])
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:
@@ -544,3 +705,12 @@ if (classification_methods_options[6] == classification_model_select):# or class
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
         if 'Area under the ROC curve' in evaluation_metric_select:
            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+        plot_curve_select = st.selectbox(
+        label='Plot ROC curve',
+        options=['No', 'Yes'],
+        )
+        if plot_curve_select == 'Yes':
+           ROC_Curve.plot()
+           RC = plt.show()
+           st.set_option('deprecation.showPyplotGlobalUse', False)
+           st.pyplot(RC)

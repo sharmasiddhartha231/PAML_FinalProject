@@ -220,7 +220,7 @@ if df is not None:
         )
         X_ASTHMS1 = st.selectbox(
             label='Do you or have you had asthma?',
-            options=['Have asthma currently', 'Had asthma before', 'Never hae had asthma'],
+            options=['Have asthma currently', 'Had asthma before', 'Never have had asthma'],
             key='X_ASTHMS1'
         )
         CVDINFR4 = st.selectbox(
