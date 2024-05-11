@@ -8,17 +8,15 @@ from plotly.subplots import make_subplots
 import pandas as pd
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import confusion_matrix
-from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler
 import seaborn as sns
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder
 from sklearn import metrics
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
 # set seed=10 to produce consistent results
 random.seed(10)
@@ -60,11 +58,15 @@ def fetch_dataset():
     return df
 
 # Checkpoint 4
-def split_dataset(df, number, target, input_var, oversample=False,random_state=42):
+def split_dataset(df, number, target, input_var, sample_opt=1,oversample_val=0.25, undersample_val=0.5,random_state=42):
     X_train = []
     X_test = []
     y_train = []
     y_test = []
+    X_train_main = []
+    X_test_main = []
+    y_train_main = []
+    y_test_main = []
     
     # Add code here
     df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
@@ -82,14 +84,24 @@ def split_dataset(df, number, target, input_var, oversample=False,random_state=4
     X = X.replace(False,0, regex=True)
     X = X.replace(True,1, regex=True)
     y=y.astype('int')
+    over = SMOTE(sampling_strategy=oversample_val)
+    under = RandomUnderSampler(sampling_strategy=undersample_val)
+    steps = [('o', over), ('u', under)]
+    pipeline = Pipeline(steps=steps)
+    X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    if sample_opt == 1:
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)    
+    if sample_opt == 2:
+        X,y = over.fit_resample(X, y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    if sample_opt == 3:
+        X,y = under.fit_resample(X, y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    if sample_opt == 4:
+        X,y = pipeline.fit_resample(X, y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
 
-    if oversample == True:
-        over = SMOTE(sampling_strategy=1)
-        # transform the dataset
-        X, y = over.fit_resample(X, y)
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
-    return X_train, X_test, y_train, y_test
+    return X_train, X_test_main, y_train, y_test_main
 
 def compute_evaluation(prediction_labels, true_labels, estimator_name):    
     '''
@@ -237,25 +249,13 @@ class LogisticRegression_GD(object):
             out_dict['Logistic Regression'] = self.W
             return out_dict
 
-class LogisticRegression_SGD(LogisticRegression):
+class LogisticRegression_SGD(LogisticRegression_GD):
     def __init__(self, num_iterations, learning_rate, batch_size): 
         self.likelihood_history=[]
         self.batch_size=batch_size
-
         # invoking the __init__ of the parent class
-        LogisticRegression.__init__(self, learning_rate, num_iterations)
-
-    # Checkpoint 11
+        LogisticRegression_GD.__init__(self, learning_rate, num_iterations)
     def fit(self, X, Y):
-        '''
-        Run mini-batch stochastic gradient ascent to fit features to data using logistic regression 
-
-        Input
-            - X: input features
-            - Y: target variable (product sentiment)
-        Output: None
-        '''
-        # Add code here
         permutation = np.random.permutation(len(X))
         self.X = X[permutation,:]
         self.Y = Y[permutation]
@@ -283,7 +283,6 @@ class LogisticRegression_SGD(LogisticRegression):
                 self.X = self.X[permutation,:]
                 self.Y = self.Y[permutation]
                 i = 0
-        # Learning rate schedule
             self.learning_rate=self.learning_rate/1.02
 
 ###################### FETCH DATASET #######################
@@ -304,13 +303,49 @@ if df is not None:
     st.write('You selected input {}'.format(
         feature_input_select))
 
-    oversample_select = st.selectbox(
-        label='Do you wish to oversample the dataset (Highly Recommended)',
-        options=['No', 'Yes'],
-        key='oversample_select'
+    sample_select = st.selectbox(
+        label='Do you wish to oversample/undersample the dataset',
+        options=['No', 'Oversample', 'Undersample', 'Oversample minority and undersample majority'],
+        key='sample_select'
     )
+    st.session_state['oversample'] = sample_select
+    if sample_select == 'Oversample':
+        oversampling_rate = st.number_input(
+                label='Input oversampling ratio',
+                min_value=25,
+                max_value=100,
+                value=25,
+                step=1,
+                key='oversampling_rate'
+            )
+    if sample_select == 'Undersample':
+        undersampling_rate = st.number_input(
+                label='Input undersampling ratio',
+                min_value=25,
+                max_value=100,
+                value=50,
+                step=1,
+                key='undersampling_rate'
+            )
+    if sample_select == 'Oversample minority and undersample majority':
+        oversampling_rate = st.number_input(
+                label='Input oversampling ratio',
+                min_value=25,
+                max_value=100,
+                value=25,
+                step=1,
+                key='oversampling_rate'
+            )
+        undersampling_rate = st.number_input(
+                label='Input undersampling ratio',
+                min_value=25,
+                max_value=100,
+                value=50,
+                step=1,
+                key='undersampling_rate'
+            )
 
-    st.session_state['oversample'] = oversample_select
+    st.session_state['oversample'] = sample_select
     # Task 4: Split train/test
     st.markdown('### Split dataset into Train/Test sets')
     st.markdown(
@@ -320,12 +355,18 @@ if df is not None:
     number = 100 - number
     X_train, X_test, y_train, y_test = [], [], [], []
     # Compute the percentage of test and training data
-    if (feature_predict_select in df.columns and oversample_select == 'Yes'):
+    if (feature_predict_select in df.columns and sample_select == 'No'):
         X_train, X_test, y_train, y_test = split_dataset(
-            df, number, feature_predict_select, feature_input_select, oversample=True)
-    if (feature_predict_select in df.columns and oversample_select == 'No'):
+            df, number, feature_predict_select, feature_input_select, sample_opt=1)
+    if (feature_predict_select in df.columns and sample_select == 'Oversample'):
         X_train, X_test, y_train, y_test = split_dataset(
-            df, number, feature_predict_select, feature_input_select, oversample=False)
+            df, number, feature_predict_select, feature_input_select, sample_opt=2,oversample_val = oversampling_rate/100)
+    if (feature_predict_select in df.columns and sample_select == 'Undersample'):
+        X_train, X_test, y_train, y_test = split_dataset(
+            df, number, feature_predict_select, feature_input_select, sample_opt=3,undersample_val=undersampling_rate/100)
+    if (feature_predict_select in df.columns and sample_select == 'Oversample minority and undersample majority'):
+        X_train, X_test, y_train, y_test = split_dataset(
+            df, number, feature_predict_select, feature_input_select, sample_opt=4,oversample_val = oversampling_rate/100,undersample_val=undersampling_rate/100)
     st.write('Number of entries in training set: {}'.format(X_train.shape[0]))
     st.write('Number of entries in testing set: {}'.format(X_test.shape[0]))
 
@@ -334,9 +375,7 @@ if df is not None:
                                       'Regularized Logistic Regression',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
-                                      'Random Forest',
-                                      'Naive Bayes',
-                                      'Linear Support Vector Machines']
+                                      'Random Forest']
 
     trained_models = [
         model for model in classification_methods_options if model in st.session_state]
@@ -370,7 +409,7 @@ if df is not None:
             lg_num_iterations = st.number_input(
                 label='Enter the number of maximum iterations on training data',
                 min_value=1000,
-                max_value=100000,
+                max_value=25000,
                 value=1000,
                 step=100,
                 key='lg_max_iter_numberinput'
@@ -382,7 +421,7 @@ if df is not None:
             'learning_rate': [float(val) for val in lg_learning_rate_input.split(',')],
         }
         lg_model = LogisticRegression_GD(num_iterations=lg_params['num_iterations'], learning_rate=lg_params['learning_rate'][0])
-        lg_model.fit(X_train, y_train)
+        lg_model.fit(X_train.to_numpy(), np.ravel(y_train)) 
         st.write('Logistic Regression Model using Gradient Descent trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
@@ -423,8 +462,8 @@ if (classification_methods_options[1] in classification_model_select):
         # Number of iterations: maximum iterations to run the iterative SGD
         sdg_num_iterations = st.number_input(
             label='Enter the number of maximum iterations on training data',
-            min_value=1,
-            max_value=5000,
+            min_value=1000,
+            max_value=50000,
             value=500,
             step=100,
             key='sgd_num_iterations_numberinput'
@@ -443,7 +482,7 @@ if (classification_methods_options[1] in classification_model_select):
         # tolerance: stopping criteria for iterations
         sgd_batch_size = st.text_input(
             label='Input a batch size value',
-            value='50',
+            value='500',
             key='sgd_batch_size_textinput'
         )
         sgd_batch_size = int(sgd_batch_size)
@@ -456,7 +495,7 @@ if (classification_methods_options[1] in classification_model_select):
         }
 
         lg_model = LogisticRegression_SGD(num_iterations=sgd_params['num_iterations'], learning_rate=sgd_params['learning_rate'],batch_size=sgd_params['batch_size'])
-        lg_model.fit(X_train, y_train)
+        lg_model.fit(X_train.to_numpy(), np.ravel(y_train)) 
         st.write('Logistic Regression Model using Stochastic Gradient Descent trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
@@ -493,7 +532,49 @@ if (classification_methods_options[1] in classification_model_select):
 
 if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[2])
-        lg_model = LogisticRegression(penalty = 'l2',max_iter = 100000, class_weight='balanced', solver = 'newton-cholesky')
+        # Number of iterations: maximum iterations to run the iterative SGD
+        rlr_num_iterations = st.number_input(
+            label='Enter the number of maximum iterations on training data',
+            min_value=1000,
+            max_value=100000,
+            value=1000,
+            step=1000,
+            key='rlr_num_iterations_numberinput'
+        )
+        st.write('You set the maximum iterations to: {}'.format(rlr_num_iterations))
+
+        # learning_rate: Constant that multiplies the regularization term. Ranges from [0 Inf)
+        rlr_tolerance = st.text_input(
+            label='Input tolerance value',
+            value='0.0001',
+            key='rlr_tolerance'
+        )
+        rlr_tolerance = float(rlr_tolerance)
+        st.write('You selected the following learning rate: {}'.format(rlr_tolerance))
+
+        # tolerance: stopping criteria for iterations
+        rlr_regularization_value = st.text_input(
+            label='Input a regularization value',
+            value='1',
+            key='rlr_regularization_value'
+        )
+        rlr_regularization_value = float(rlr_regularization_value)
+        st.write('You selected the following batch_size: {}'.format(rlr_regularization_value))
+
+        rlr_solver = st.selectbox(
+            label='Input solver name',
+            options=['lbfgs','liblinear','newton-cg','newton-cholesky','sag','saga'],
+            key='rlr_solver'
+        )
+        st.write('You selected the following batch_size: {}'.format(rlr_solver))
+
+        rlr_params = {
+            'num_iterations': rlr_num_iterations,
+            'tolerance': rlr_tolerance,
+            'solver': rlr_solver,
+            'regularization': rlr_regularization_value
+        }
+        lg_model = LogisticRegression(max_iter = sdg_num_iterations,solver=rlr_solver,C=rlr_regularization_value, tol=rlr_tolerance)
         lg_model.fit(X_train, y_train)
         st.write('Regularized Logistic Regression Model Model trained')
         y_pred = lg_model.predict(X_test)
@@ -617,82 +698,6 @@ if (classification_methods_options[5] == classification_model_select):# or class
         )
         st.session_state['evaluation'] = evaluation_metric_select
         Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[5])
-        if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
-        if 'Area under the ROC curve' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
-        )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
-
-if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[6])
-        lg_model = GaussianNB()
-        lg_model.fit(X_train, y_train)
-        st.write('Gaussian Naive Bayes Model trained')
-        y_pred = lg_model.predict(X_test)
-        st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
-        evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
-        )
-        st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[6])
-        if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
-        if 'Area under the ROC curve' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
-        )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
-
-
-if (classification_methods_options[7] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[7])
-        lg_model = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
-        lg_model.fit(X_train, y_train)
-        st.write('Linear Support Vector Machine Model trained')
-        y_pred = lg_model.predict(X_test)
-        st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
-        evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
-        )
-        st.session_state['evaluation'] = evaluation_metric_select
-        
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[7])
         if 'Accuracy' in evaluation_metric_select:
            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
         if 'Precision' in evaluation_metric_select:

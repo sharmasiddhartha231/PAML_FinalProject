@@ -8,17 +8,17 @@ from plotly.subplots import make_subplots
 import pandas as pd
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import confusion_matrix
-from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler
 import seaborn as sns
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder
-
+from sklearn import metrics
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.pipeline import Pipeline
+import matplotlib.pyplot as plt
+from pages.Model_Exploration import LogisticRegression_GD, LogisticRegression_SGD, compute_evaluation
 #############################################
 
 st.markdown('### Predicting your Diabetes Status')
@@ -39,7 +39,7 @@ def load_dataset(filepath):
     st.session_state['data'] = data
     return data
 
-def split_dataset_predict(df, number, input_row,random_state=42):
+def split_dataset_predict(df, number, input_row,sample_opt=1,oversample_val=0.25, undersample_val=0.5,random_state=42):
     """
     This function splits the dataset into the training and test sets.
 
@@ -57,8 +57,14 @@ def split_dataset_predict(df, number, input_row,random_state=42):
         - y_val: test/validation targets
     """
     X_train = []
+    X_test = []
     y_train = []
-    
+    y_test = []
+    X_train_main = []
+    X_test_main = []
+    y_train_main = []
+    y_test_main = []
+
     # Add code here
     df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
     df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
@@ -77,9 +83,22 @@ def split_dataset_predict(df, number, input_row,random_state=42):
     y=y.astype('int')
     X_predict = X.tail(1)
     X.drop(X.tail(1).index,inplace=True)
-    over = SMOTE(sampling_strategy=1)
-    # transform the dataset
-    X, y = over.fit_resample(X, y)
+    over = SMOTE(sampling_strategy=oversample_val)
+    under = RandomUnderSampler(sampling_strategy=undersample_val)
+    steps = [('o', over), ('u', under)]
+    pipeline = Pipeline(steps=steps)
+    X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    if sample_opt == 1:
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)    
+    if sample_opt == 2:
+        X,y = over.fit_resample(X, y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    if sample_opt == 3:
+        X,y = under.fit_resample(X, y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    if sample_opt == 4:
+        X,y = pipeline.fit_resample(X, y)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
     return X_train, y_train, X_predict
@@ -309,53 +328,59 @@ if df is not None:
 
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 2. Choose a model') 
-    classification_methods_options = ['Logistic Regression',
-                                      'Logistic Regression (Newton Cholesky)',
+    classification_methods_options = ['Logistic Regression using Gradient Descent',
+                                      'Logistic Regression using Stochastic Gradient Descent'
+                                      'Regularized Logistic Regression',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
                                       'Random Forest',
                                       'Naive Bayes',
                                       'Linear Support Vector Machines']
+    
     classification_model_select = st.selectbox(
         label='Select classification model for prediction',
         options=classification_methods_options,
     )
+    if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[1])
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
+        ml_model = LogisticRegression_GD(num_iterations = 20000, learning_rate=0.0005)
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_predict)
     if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[1])
-        ml_model = LogisticRegression(penalty='l2', max_iter = 100000, solver = 'newton-cholesky')
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
+        ml_model = LogisticRegression_SGD(num_iterations = 7500, learning_rate=0.0005, batch_size=7500)
+        ml_model.fit(X_train, y_train)
+        y_pred = ml_model.predict(X_predict)
+    if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        #st.markdown('## ' + classification_methods_options[1])
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
+        ml_model = LogisticRegression(penalty='l2', max_iter = 10000, solver = 'saga', tol=0.001, C=0.01)
         ml_model.fit(X_train, y_train)
         y_pred = ml_model.predict(X_predict)
         
-    if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
+    if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[2])
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
         ml_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
         ml_model.fit(X_train, y_train)
         y_pred = ml_model.predict(X_predict)
 
-    if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
+    if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[3])
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
         ml_model = DecisionTreeClassifier()
         ml_model.fit(X_train, y_train)
         y_pred = ml_model.predict(X_predict)
        
-    if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
+    if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[4])
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
         ml_model = RandomForestClassifier(random_state=0)
         ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_test)
+        y_pred = ml_model.predict(X_predict)
      
-    if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[5])
-        ml_model = GaussianNB()
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
-        
-    if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[6])
-        ml_model = make_pipeline(StandardScaler(),LinearSVC(dual=False, random_state=0, tol=1e-5))
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
-
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 3. Check your results') 
     if y_pred == 0:
