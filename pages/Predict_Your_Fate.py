@@ -324,8 +324,6 @@ if df is not None:
                      'X_VEGSU1DF':X_VEGSU1DF
                     }   
     
-    X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
-
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 2. Choose a model') 
     classification_methods_options = ['Logistic Regression using Gradient Descent',
@@ -333,9 +331,7 @@ if df is not None:
                                       'Regularized Logistic Regression',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
-                                      'Random Forest',
-                                      'Naive Bayes',
-                                      'Linear Support Vector Machines']
+                                      'Random Forest']
     
     classification_model_select = st.selectbox(
         label='Select classification model for prediction',
@@ -343,19 +339,19 @@ if df is not None:
     )
     if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[1])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
         ml_model = LogisticRegression_GD(num_iterations = 20000, learning_rate=0.0005)
         ml_model.fit(X_train, y_train)
         y_pred = ml_model.predict(X_predict)
     if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[1])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
         ml_model = LogisticRegression_SGD(num_iterations = 7500, learning_rate=0.0005, batch_size=7500)
         ml_model.fit(X_train, y_train)
         y_pred = ml_model.predict(X_predict)
     if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[1])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
+        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
         ml_model = LogisticRegression(penalty='l2', max_iter = 10000, solver = 'saga', tol=0.001, C=0.01)
         ml_model.fit(X_train, y_train)
         y_pred = ml_model.predict(X_predict)
@@ -384,9 +380,9 @@ if df is not None:
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 3. Check your results') 
     if y_pred == 0:
-       st.markdown('### The model predicts you do not have Diabetes.')
+       st.markdown('### The model predicts that you do not stand at the risk of having Diabetes. Please refer to the **Explore Results** page regarding how well the model works.')
     if y_pred == 1:
-       st.markdown('### The model predicts you do have Diabetes.')
+       st.markdown('### The model predicts you do stand at the risk of having Diabetes. Please refer to the **Explore Results** page regarding how well the model works')
 
 
         
