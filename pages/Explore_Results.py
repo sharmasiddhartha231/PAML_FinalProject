@@ -50,6 +50,7 @@ def OddsCalculation(df, input_var,random_state=42):
     df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
     df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
     df.DIABETERES[df.DIABETERES == 'Diabetes'] = 1
+    df = df.drop_duplicates()
     df = df.reset_index(drop=True) 
     df = df[['DIABETERES',input_var]]
     cols = [input_var]
@@ -494,4 +495,3 @@ if df is not None:
         """)
         trend_plot = px.line(weights, x='Factor', y='Odds Ratio', title = 'Associated Risk of getting diabetes')
         st.write(trend_plot)
-    

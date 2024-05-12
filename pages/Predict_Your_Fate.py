@@ -18,7 +18,6 @@ from sklearn import metrics
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
-from pages.Model_Exploration import LogisticRegression_GD, LogisticRegression_SGD, compute_evaluation
 #############################################
 
 st.markdown('### Predicting your Diabetes Status')
@@ -69,6 +68,7 @@ def split_dataset_predict(df, number, input_row,sample_opt=1,oversample_val=0.25
     df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
     df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
     df.DIABETERES[df.DIABETERES == 'Diabetes'] = 1
+    df = df.drop_duplicates()
     df = df.reset_index(drop=True)
     X, y = df.loc[:, ~df.columns.isin(['DIABETERES'])], df.loc[:, df.columns.isin(['DIABETERES'])]
     X = pd.concat([y, pd.DataFrame([input_row])], ignore_index=True) 
@@ -89,16 +89,16 @@ def split_dataset_predict(df, number, input_row,sample_opt=1,oversample_val=0.25
     pipeline = Pipeline(steps=steps)
     X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state)
     if sample_opt == 1:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)    
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)    
     if sample_opt == 2:
         X,y = over.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
     if sample_opt == 3:
         X,y = under.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
     if sample_opt == 4:
         X,y = pipeline.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
     return X_train, y_train, X_predict
@@ -327,7 +327,7 @@ if df is not None:
     ###################### VISUALIZE DATASET #######################
     st.markdown('### 2. Choose a model') 
     classification_methods_options = ['Logistic Regression using Gradient Descent',
-                                      'Logistic Regression using Stochastic Gradient Descent'
+                                      'Logistic Regression using Stochastic Gradient Descent',
                                       'Regularized Logistic Regression',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
@@ -337,18 +337,18 @@ if df is not None:
         label='Select classification model for prediction',
         options=classification_methods_options,
     )
-    if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[1])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
-        ml_model = LogisticRegression_GD(num_iterations = 20000, learning_rate=0.0005)
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
-    if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[1])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
-        ml_model = LogisticRegression_SGD(num_iterations = 7500, learning_rate=0.0005, batch_size=7500)
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
+    #if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
+    #    #st.markdown('## ' + classification_methods_options[1])
+    #    X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
+    #    ml_model = LogisticRegression_GD(num_iterations = 20000, learning_rate=0.0005)
+    #    ml_model.fit(X_train, y_train)
+    #    y_pred = ml_model.predict(X_predict)
+    #if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
+    #    #st.markdown('## ' + classification_methods_options[1])
+    #    X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
+    #    ml_model = LogisticRegression_SGD(num_iterations = 7500, learning_rate=0.0005, batch_size=7500)
+    #    ml_model.fit(X_train, y_train)
+    #    y_pred = ml_model.predict(X_predict)
     if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
         #st.markdown('## ' + classification_methods_options[1])
         X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)

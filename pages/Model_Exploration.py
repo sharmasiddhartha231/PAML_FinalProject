@@ -72,6 +72,7 @@ def split_dataset(df, number, target, input_var, sample_opt=1,oversample_val=0.2
     df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
     df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
     df.DIABETERES[df.DIABETERES == 'Diabetes'] = 1
+    df = df.drop_duplicates()
     df = df.reset_index(drop=True)
     X, y = df.loc[:, df.columns.isin(input_var)], df.loc[:, df.columns.isin([target])]
     #enc = OneHotEncoder(handle_unknown='ignore')
@@ -90,16 +91,16 @@ def split_dataset(df, number, target, input_var, sample_opt=1,oversample_val=0.2
     pipeline = Pipeline(steps=steps)
     X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state)
     if sample_opt == 1:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)    
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)    
     if sample_opt == 2:
         X,y = over.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
     if sample_opt == 3:
         X,y = under.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
     if sample_opt == 4:
         X,y = pipeline.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
+        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
 
     return X_train, X_test_main, y_train, y_test_main
 
@@ -371,7 +372,7 @@ if df is not None:
     st.write('Number of entries in testing set: {}'.format(X_test.shape[0]))
 
     classification_methods_options = ['Logistic Regression using Gradient Descent',
-                                      'Logistic Regression using Stochastic Gradient Descent'
+                                      'Logistic Regression using Stochastic Gradient Descent',
                                       'Regularized Logistic Regression',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
