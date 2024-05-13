@@ -13,6 +13,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import LinearSVC
+import pickle
 import seaborn as sns
 from sklearn import metrics
 from imblearn.under_sampling import RandomUnderSampler
@@ -71,7 +72,7 @@ def split_dataset_predict(df, number, input_row,sample_opt=1,oversample_val=0.25
     df = df.drop_duplicates()
     df = df.reset_index(drop=True)
     X, y = df.loc[:, ~df.columns.isin(['DIABETERES'])], df.loc[:, df.columns.isin(['DIABETERES'])]
-    X = pd.concat([y, pd.DataFrame([input_row])], ignore_index=True) 
+    X = pd.concat([X, pd.DataFrame([input_row])], ignore_index=True) 
     col_vals = X.columns
     for i in col_vals:
         i = pd.get_dummies(X[i], drop_first=False)
@@ -82,27 +83,113 @@ def split_dataset_predict(df, number, input_row,sample_opt=1,oversample_val=0.25
     X = X.replace(True,1, regex=True)
     y=y.astype('int')
     X_predict = X.tail(1)
-    X.drop(X.tail(1).index,inplace=True)
-    over = SMOTE(sampling_strategy=oversample_val)
-    under = RandomUnderSampler(sampling_strategy=undersample_val)
-    steps = [('o', over), ('u', under)]
-    pipeline = Pipeline(steps=steps)
-    X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state)
-    if sample_opt == 1:
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)    
-    if sample_opt == 2:
-        X,y = over.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
-    if sample_opt == 3:
-        X,y = under.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
-    if sample_opt == 4:
-        X,y = pipeline.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
+    #X.drop(X.tail(1).index,inplace=True)
+    #over = SMOTE(sampling_strategy=oversample_val)
+    #under = RandomUnderSampler(sampling_strategy=undersample_val)
+    #steps = [('o', over), ('u', under)]
+    #pipeline = Pipeline(steps=steps)
+    #X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state, stratify=y)
+    #if sample_opt == 1:
+    #    X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)    
+    #if sample_opt == 2:
+    #    X,y = over.fit_resample(X, y)
+    #    X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
+    #if sample_opt == 3:
+    #    X,y = under.fit_resample(X, y)
+    #    X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
+    #if sample_opt == 4:
+    #X,y = pipeline.fit_resample(X, y)
+    #X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
     
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=number/100, random_state=random_state)
-    return X_train, y_train, X_predict
+    return X_predict
 
+class LogisticRegression_GD(object):
+    def __init__(self, learning_rate=0.001, num_iterations=1000): 
+        self.learning_rate = learning_rate 
+        self.num_iterations = num_iterations 
+        self.likelihood_history=[]
+    def predict_probability(self, X):
+        score = np.dot(X, self.W) + self.b
+        y_pred = 1. / (1.+np.exp(-score)) 
+        return y_pred
+    def compute_avg_log_likelihood(self, X, Y, W):
+        #indicator = (Y==+1)
+        #scores = np.dot(X, W) 
+        #logexp = np.log(1. + np.exp(-scores))
+        #mask = np.isinf(logexp)
+        #logexp[mask] = -scores[mask]
+        #lp = np.sum((indicator-1)*scores - logexp)/len(X)
+        scores = np.dot(X, W) 
+        score = 1 / (1 + np.exp(-scores))
+        y1 = ((Y * np.log(score)))
+        y2 = ((1-Y) * np.log(1 - score))
+        lp = -np.mean(y1 + y2)
+        return lp
+    def update_weights(self):      
+        num_examples, num_features = self.X.shape
+        y_pred = self.predict(self.X)
+        dW = self.X.T.dot(self.Y-y_pred) / num_examples 
+        db = np.sum(self.Y-y_pred) / num_examples 
+        self.b = self.b + self.learning_rate * db
+        self.W = self.W + self.learning_rate * dW
+        log_likelihood=0
+        log_likelihood += self.compute_avg_log_likelihood(self.X, self.Y, self.W)
+        self.likelihood_history.append(log_likelihood)
+    def predict(self, X):
+        y_pred= 0
+        scores = 1 / (1 + np.exp(- (X.dot(self.W) + self.b)))
+        y_pred = [0 if z <= 0.5 else +1 for z in scores]
+        return y_pred 
+    def fit(self, X, Y):   
+        self.X = X
+        self.Y = Y
+        num_examples, num_features = self.X.shape    
+        self.W = np.zeros(num_features)
+        self.b = 0
+        self.likelihood_history=[]
+        for _ in range(self.num_iterations):          
+            self.update_weights()  
+    def get_weights(self):
+            out_dict = {'Logistic Regression': []}
+            W = np.array([f for f in self.W])
+            out_dict['Logistic Regression'] = self.W
+            return out_dict
+
+class LogisticRegression_SGD(LogisticRegression_GD):
+    def __init__(self, num_iterations, learning_rate, batch_size): 
+        self.likelihood_history=[]
+        self.batch_size=batch_size
+        # invoking the __init__ of the parent class
+        LogisticRegression_GD.__init__(self, learning_rate, num_iterations)
+    def fit(self, X, Y):
+        permutation = np.random.permutation(len(X))
+        self.X = X[permutation,:]
+        self.Y = Y[permutation]
+        self.num_features, self.num_examples = self.X.shape    
+        W = np.zeros(self.num_examples)
+        self.W = W
+        b = 0
+        self.b = b
+        likelihood_history = []
+        i = 0 
+        self.likelihood_history = likelihood_history 
+        for itr in range(self.num_iterations):
+            predictions = self.predict_probability(self.X[i:i+self.batch_size,:])
+            indicator = (self.Y[i:i+self.batch_size]==+1)
+            errors = indicator - predictions
+            for j in range(len(self.W)):
+                dW = errors.dot(self.X[i:i+self.batch_size,j].T)
+                self.W[j] += self.learning_rate * dW 
+            lp = self.compute_avg_log_likelihood(self.X[i:i+self.batch_size,:], Y[i:i+self.batch_size],
+                                        self.W)
+            self.likelihood_history.append(lp)
+            i += self.batch_size
+            if i+self.batch_size > len(self.X):
+                permutation = np.random.permutation(len(self.X))
+                self.X = self.X[permutation,:]
+                self.Y = self.Y[permutation]
+                i = 0
+            self.learning_rate=self.learning_rate/1.02
 ###################### FETCH DATASET #######################
 df = None
 if('data' in st.session_state):
@@ -293,7 +380,11 @@ if df is not None:
             key='DECIDE'
         )
     
-    input_row = {'EXERANY2':EXERANY2,
+    input_row = {'SEXVAR':SEXVAR,
+                    'GENHLTH':GENHLTH,
+                    'PRIMINSR':PRIMINSR,
+                    'CHECKUP1':CHECKUP1,
+                    'EXERANY2':EXERANY2,
                      'BPHIGH6':BPHIGH6,
                      'CVDINFR4':CVDINFR4,
                      'CVDCRHD4':CVDCRHD4,
@@ -324,65 +415,91 @@ if df is not None:
                      'X_VEGSU1DF':X_VEGSU1DF
                     }   
     
-    ###################### VISUALIZE DATASET #######################
-    st.markdown('### 2. Choose a model') 
-    classification_methods_options = ['Logistic Regression using Gradient Descent',
-                                      'Logistic Regression using Stochastic Gradient Descent',
-                                      'Regularized Logistic Regression',
-                                      'K Nearest Neighbor',
-                                      'Decision Tree',
-                                      'Random Forest']
+    #st.write(input_row)
     
-    classification_model_select = st.selectbox(
-        label='Select classification model for prediction',
-        options=classification_methods_options,
-    )
-    #if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
-    #    #st.markdown('## ' + classification_methods_options[1])
-    #    X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
-    #    ml_model = LogisticRegression_GD(num_iterations = 20000, learning_rate=0.0005)
-    #    ml_model.fit(X_train, y_train)
-    #    y_pred = ml_model.predict(X_predict)
-    #if (classification_methods_options[1] == classification_model_select):# or classification_methods_options[0] in trained_models):
-    #    #st.markdown('## ' + classification_methods_options[1])
-    #    X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
-    #    ml_model = LogisticRegression_SGD(num_iterations = 7500, learning_rate=0.0005, batch_size=7500)
-    #    ml_model.fit(X_train, y_train)
-    #    y_pred = ml_model.predict(X_predict)
-    if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[1])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
-        ml_model = LogisticRegression(penalty='l2', max_iter = 10000, solver = 'saga', tol=0.001, C=0.01)
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
-        
-    if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[2])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
-        ml_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
-
-    if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[3])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
-        ml_model = DecisionTreeClassifier()
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
-       
-    if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        #st.markdown('## ' + classification_methods_options[4])
-        X_train, y_train, X_predict = split_dataset_predict(df, 0.3, input_row)
-        ml_model = RandomForestClassifier(random_state=0)
-        ml_model.fit(X_train, y_train)
-        y_pred = ml_model.predict(X_predict)
-     
+    #st.write(X_predict)
     ###################### VISUALIZE DATASET #######################
-    st.markdown('### 3. Check your results') 
-    if y_pred == 0:
-       st.markdown('### The model predicts that you do not stand at the risk of having Diabetes. Please refer to the **Explore Results** page regarding how well the model works.')
-    if y_pred == 1:
-       st.markdown('### The model predicts you do stand at the risk of having Diabetes. Please refer to the **Explore Results** page regarding how well the model works')
+         
+    ###################### VISUALIZE DATASET #######################
+    ## The models were trained using the following parameters
+    #feature_input_select = df.columns.drop('DIABETERES')
+    #X_train, X_test, y_train, y_test = split_dataset(df, 30, 'DIABETERES', feature_input_select, sample_opt=4,oversample_val = 25/100,undersample_val=50/100)
+    #lr_sgd = LogisticRegression_SGD(num_iterations=7500, learning_rate=0.0005, batch_size = 7500)
+    #neigh = KNeighborsClassifier(weights='distance', p=2,leaf_size=10,n_neighbors=100)
+    #clf = RandomForestClassifier(criterion='entropy', min_samples_leaf = 20,max_depth=50,n_estimators=1000)
+    #logmodel = LogisticRegression(max_iter = 10000, solver = 'saga', C=0.1, tol=0.001)
+    #treed = DecisionTreeClassifier(criterion='gini', min_samples_leaf=5, max_depth=10)
+    #lsvm = LinearSVC(dual=False, random_state=0,max_iter=1000,tol=0.05)
+    ## For training, we used the oversampled/undersampled mix data from the initial broken down 70:30 split
+
+    if st.button("Predict Results"):
+        X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
+        with open(r"lr_sgd.pkl", "rb") as input_file:
+            ml_model = pickle.load(input_file)
+        lr_sgd = ml_model.predict(X_predict)
+        lr_sgd = lr_sgd[0]
+
+        with open(r"rlr.pkl", "rb") as input_file:
+            ml_model = pickle.load(input_file)
+        rlr = ml_model.predict(X_predict)
+
+        with open(r"knn.pkl", "rb") as input_file:
+            ml_model = pickle.load(input_file)
+        knn = ml_model.predict(X_predict)
+
+        with open(r"dtree.pkl", "rb") as input_file:
+            ml_model = pickle.load(input_file)
+        dtree = ml_model.predict(X_predict)
+
+        with open(r"rf.pkl", "rb") as input_file:
+            ml_model = pickle.load(input_file)
+        rf = ml_model.predict(X_predict)
+
+        with open(r"lsvm.pkl", "rb") as input_file:
+            ml_model = pickle.load(input_file)
+        lsvm = ml_model.predict(X_predict)
+
+        y_pred = [lr_sgd,rlr,knn,dtree,rf,lsvm]
+        x=[i for j,i in enumerate(y_pred) if i==1]
+        d1 = len(x)
+        y = [i for j,i in enumerate(y_pred) if i==0]
+        d2 = len(y)
+
+
+    
+        st.markdown('#### {} Models predict you have diabetes while {} models predict that you do not have diabetes:'.format(d1,d2))
+
+        if lr_sgd == 0:
+            st.write('The Logistic Regression using Stochastic Gradient Descent model predicts that you do not stand at the risk of having Diabetes.')
+        if lr_sgd == 1:
+            st.write('The Logistic Regression using Stochastic Gradient Descent model predicts you do stand at the risk of having Diabetes.')
+
+        if rlr == 0:
+            st.write('The Regularized Logistic Regression model predicts that you do not stand at the risk of having Diabetes.')
+        if rlr == 1:
+            st.write('The Regularized Logistic Regression model predicts you do stand at the risk of having Diabetes.')
+
+        if knn == 0:
+            st.write('The K Nearest Neighbor model predicts that you do not stand at the risk of having Diabetes.')
+        if knn == 1:
+            st.write('The K Nearest Neighbor model predicts you do stand at the risk of having Diabetes.')
+
+        if dtree == 0:
+            st.write('The Decision Tree model predicts that you do not stand at the risk of having Diabetes.')
+        if dtree == 1:
+            st.write('The Decision Tree model predicts you do stand at the risk of having Diabetes.')
+    
+        if rf == 0:
+            st.write('The Random Forest classifier model predicts that you do not stand at the risk of having Diabetes.')
+        if rf == 1:
+            st.write('The Random Forest classifier model predicts you do stand at the risk of having Diabetes.')
+
+        if lsvm == 0:
+            st.write('The Linear Support Vector Machine model predicts that you do not stand at the risk of having Diabetes.')
+        if lsvm == 1:
+            st.write('The Linear Support Vector Machine model predicts you do stand at the risk of having Diabetes.')
+
+        st.write("Please refer to the **Explore Results** page regarding how well the model works.")
 
 
         

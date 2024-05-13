@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import streamlit as st                  
 import random
+import pickle
 from helper_functions import fetch_dataset, set_pos_neg_reviews
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -15,6 +16,8 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import LinearSVC
 import seaborn as sns
 from sklearn import metrics
+from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
@@ -32,7 +35,6 @@ st.markdown("""Welcome to the **Model Exploration** section where you can test t
 - Logistic Regression using Stochastic Gradient Descent
 - Regularized Logistic Regression 
 - K Nearest Neighbors
-- Naive Bayes
 - Decision Tree
 - Random Forest Classifier
 - Support Vector Machines
@@ -89,18 +91,19 @@ def split_dataset(df, number, target, input_var, sample_opt=1,oversample_val=0.2
     under = RandomUnderSampler(sampling_strategy=undersample_val)
     steps = [('o', over), ('u', under)]
     pipeline = Pipeline(steps=steps)
-    X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state)
+    X_train_main, X_test_main, y_train_main, y_test_main = train_test_split(X, y, test_size=number/100, random_state=random_state, stratify=y)
     if sample_opt == 1:
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)    
+        X_train = X_train_main
+        y_train = y_train_main   
     if sample_opt == 2:
-        X,y = over.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
+        X_train,y_train = over.fit_resample(X_train_main, y_train_main)
+        #X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
     if sample_opt == 3:
-        X,y = under.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
+        X_train,y_train = under.fit_resample(X_train_main, y_train_main)
+        #X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
     if sample_opt == 4:
-        X,y = pipeline.fit_resample(X, y)
-        X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state)
+        X_train,y_train = pipeline.fit_resample(X_train_main, y_train_main)
+        #X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
 
     return X_train, X_test_main, y_train, y_test_main
 
@@ -143,7 +146,7 @@ def compute_evaluation(prediction_labels, true_labels, estimator_name):
     metric_dict['Specificity'] = specificity
     metric_dict['Misclassification'] = misclassification
     metric_dict['Area under the ROC curve'] = auc_roc
-    return metric_dict, display
+    return tn,fp,fn,tp,metric_dict, display
 
 class LogisticRegression_GD(object):
     def __init__(self, learning_rate=0.001, num_iterations=1000): 
@@ -367,7 +370,7 @@ if df is not None:
             df, number, feature_predict_select, feature_input_select, sample_opt=3,undersample_val=undersampling_rate/100)
     if (feature_predict_select in df.columns and sample_select == 'Oversample minority and undersample majority'):
         X_train, X_test, y_train, y_test = split_dataset(
-            df, number, feature_predict_select, feature_input_select, sample_opt=4,oversample_val = oversampling_rate/100,undersample_val=undersampling_rate/100)
+            df, number, feature_predict_select, feature_input_select, sample_opt=4,oversample_val=oversampling_rate/100,undersample_val=undersampling_rate/100)
     st.write('Number of entries in training set: {}'.format(X_train.shape[0]))
     st.write('Number of entries in testing set: {}'.format(X_test.shape[0]))
 
@@ -376,7 +379,8 @@ if df is not None:
                                       'Regularized Logistic Regression',
                                       'K Nearest Neighbor',
                                       'Decision Tree',
-                                      'Random Forest']
+                                      'Random Forest',
+                                      'Linear Support Vector Machines']
 
     trained_models = [
         model for model in classification_methods_options if model in st.session_state]
@@ -426,36 +430,39 @@ if df is not None:
         st.write('Logistic Regression Model using Gradient Descent trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
-        evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
-        )
-        st.session_state['evaluation'] = evaluation_metric_select
-        
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[0])
-        if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
-        if 'Area under the ROC curve' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
-        )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
+        try:
+            TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[0])
+            evaluation_options = ['Accuracy', 'Sensitivity', 'Specificity','Area under the ROC curve'] 
+            evaluation_metric_select = st.multiselect(
+            label='Select evaluation metric for current model',
+            options=evaluation_options,
+            key='evaluation_select'
+            )
+            st.session_state['evaluation'] = evaluation_metric_select
+            st.write('Number of true positives in the model: {}'.format(TP))
+            st.write('Number of true negatives in the model: {}'.format(FN))
+            st.write('Number of false positives in the model: {}'.format(FP))
+            st.write('Number of false negatives in the model: {}'.format(FN))
+            if 'Accuracy' in evaluation_metric_select:
+                st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            if 'Sensitivity' in evaluation_metric_select:
+                st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            if 'Specificity' in evaluation_metric_select:
+                st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            if 'Area under the ROC curve' in evaluation_metric_select:
+                st.write('Area under the ROC curve of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+            plot_curve_select = st.selectbox(
+            label='Plot ROC curve',
+            options=['No', 'Yes'],
+            )
+            if plot_curve_select == 'Yes':
+                ROC_Curve.plot()
+                RC = plt.show()
+                st.set_option('deprecation.showPyplotGlobalUse', False)
+                st.pyplot(RC)
+        except NameError:
+            st.write('Please run a model before evaluation.')
+
 
 if (classification_methods_options[1] in classification_model_select):
         st.markdown('#### ' + classification_methods_options[1])
@@ -465,7 +472,7 @@ if (classification_methods_options[1] in classification_model_select):
             label='Enter the number of maximum iterations on training data',
             min_value=1000,
             max_value=50000,
-            value=500,
+            value=1000,
             step=100,
             key='sgd_num_iterations_numberinput'
         )
@@ -500,35 +507,39 @@ if (classification_methods_options[1] in classification_model_select):
         st.write('Logistic Regression Model using Stochastic Gradient Descent trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
-        evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
-        )
-        st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[2])
-        if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
-        if 'Area under the ROC curve' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
-        )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
+        try:
+            TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[1])
+            evaluation_options = ['Accuracy', 'Sensitivity', 'Specificity','Area under the ROC curve'] 
+            evaluation_metric_select = st.multiselect(
+            label='Select evaluation metric for current model',
+            options=evaluation_options,
+            key='evaluation_select'
+            )
+            st.session_state['evaluation'] = evaluation_metric_select
+            st.write('Number of true positives in the model: {}'.format(TP))
+            st.write('Number of true negatives in the model: {}'.format(FN))
+            st.write('Number of false positives in the model: {}'.format(FP))
+            st.write('Number of false negatives in the model: {}'.format(FN))
+            if 'Accuracy' in evaluation_metric_select:
+                st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            if 'Sensitivity' in evaluation_metric_select:
+                st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            if 'Specificity' in evaluation_metric_select:
+                st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            if 'Area under the ROC curve' in evaluation_metric_select:
+                st.write('Area under the ROC curve of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+            plot_curve_select = st.selectbox(
+            label='Plot ROC curve',
+            options=['No', 'Yes'],
+            )
+            if plot_curve_select == 'Yes':
+                ROC_Curve.plot()
+                RC = plt.show()
+                st.set_option('deprecation.showPyplotGlobalUse', False)
+                st.pyplot(RC)
+        except NameError:
+            st.write('Please run a model before evaluation.')
+
 
 
 if (classification_methods_options[2] == classification_model_select):# or classification_methods_options[0] in trained_models):
@@ -560,7 +571,7 @@ if (classification_methods_options[2] == classification_model_select):# or class
             key='rlr_regularization_value'
         )
         rlr_regularization_value = float(rlr_regularization_value)
-        st.write('You selected the following batch_size: {}'.format(rlr_regularization_value))
+        st.write('You selected the following regularization: {}'.format(rlr_regularization_value))
 
         rlr_solver = st.selectbox(
             label='Input solver name',
@@ -575,148 +586,346 @@ if (classification_methods_options[2] == classification_model_select):# or class
             'solver': rlr_solver,
             'regularization': rlr_regularization_value
         }
-        lg_model = LogisticRegression(max_iter = sdg_num_iterations,solver=rlr_solver,C=rlr_regularization_value, tol=rlr_tolerance)
+        lg_model = LogisticRegression(max_iter = rlr_num_iterations,solver=rlr_solver,C=rlr_regularization_value, tol=rlr_tolerance, random_state=0)
         lg_model.fit(X_train, y_train)
         st.write('Regularized Logistic Regression Model Model trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification','Area under the ROC curve'] 
-        evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
-        )
-        st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[2])
-        if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
-        if 'Area under the ROC curve' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
-        )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
-
-if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
-        st.markdown('## ' + classification_methods_options[3])
-        lg_model = KNeighborsClassifier(n_neighbors=3, weights = 'distance')
-        lg_model.fit(X_train, y_train)
-        st.write('K Nearest Neighbor Model trained')
-        y_pred = lg_model.predict(X_test)
-        st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
-        evaluation_metric_select = st.multiselect(
+        try:
+            TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[2])
+            evaluation_options = ['Accuracy', 'Sensitivity', 'Specificity','Area under the ROC curve'] 
+            evaluation_metric_select = st.multiselect(
             label='Select evaluation metric for current model',
             options=evaluation_options,
             key='evaluation_select'
             )
-        st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[3])
-        if 'Accuracy' in evaluation_metric_select:
-            st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-            st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-            st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-            st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-            st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification']))
-        if 'Area under the ROC curve' in evaluation_metric_select:
-            st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
+            st.session_state['evaluation'] = evaluation_metric_select
+            st.write('Number of true positives in the model: {}'.format(TP))
+            st.write('Number of true negatives in the model: {}'.format(FN))
+            st.write('Number of false positives in the model: {}'.format(FP))
+            st.write('Number of false negatives in the model: {}'.format(FN))
+            if 'Accuracy' in evaluation_metric_select:
+                st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            if 'Sensitivity' in evaluation_metric_select:
+                st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            if 'Specificity' in evaluation_metric_select:
+                st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            if 'Area under the ROC curve' in evaluation_metric_select:
+                st.write('Area under the ROC curve of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+            plot_curve_select = st.selectbox(
+            label='Plot ROC curve',
+            options=['No', 'Yes'],
+            )
+            if plot_curve_select == 'Yes':
+                ROC_Curve.plot()
+                RC = plt.show()
+                st.set_option('deprecation.showPyplotGlobalUse', False)
+                st.pyplot(RC)
+        except NameError:
+            st.write('Please run a model before evaluation.')
+
+
+if (classification_methods_options[3] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[3])
+        knn_weights = st.selectbox(
+            label='Input weight function',
+            options = ['uniform','distance'],
+            key='knn_weights'
         )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
+        st.write('You selected the following weight function: {}'.format(knn_weights))
+        knn_neighbor_value = st.number_input(
+            label='Enter the number of neighbors for training',
+            min_value=5,
+            max_value=200,
+            value=5,
+            step=1,
+            key='knn_neighbor_value'
+        )
+        st.write('You selected the following number of neighbors for training: {}'.format(knn_neighbor_value))
+        
+        knn_leaf_size = st.number_input(
+            label='Enter the leaf size for construction and query',
+            min_value=10,
+            max_value=500,
+            value=10,
+            step=5,
+            key='knn_leaf_size'
+        )
+        st.write('You selected the following leaf size for training: {}'.format(knn_leaf_size))
+
+        knn_power = st.selectbox(
+            label='Input power parameter name (p=1 uses manhattan distance, p=2 uses euclidean distance)',
+            options=[1,2],
+            key='knn_power'
+        )
+        st.write('You selected the following power parameter: {}'.format(knn_power))
+
+        knn_params = {
+            'knn_neighbor_value': knn_neighbor_value,
+            'knn_leaf_size': knn_leaf_size,
+            'knn_weights': knn_weights,
+            'knn_power': knn_power
+        }
+        lg_model = KNeighborsClassifier(n_neighbors=knn_neighbor_value, weights = knn_weights, p=knn_power, leaf_size=knn_leaf_size)
+        lg_model.fit(X_train, y_train)
+        st.write('K Nearest Neighbor Model trained')
+        y_pred = lg_model.predict(X_test)
+
+        st.markdown('### Evaluate your model')
+        try:
+            TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[3])
+            evaluation_options = ['Accuracy', 'Sensitivity', 'Specificity','Area under the ROC curve'] 
+            evaluation_metric_select = st.multiselect(
+            label='Select evaluation metric for current model',
+            options=evaluation_options,
+            key='evaluation_select'
+            )
+            st.session_state['evaluation'] = evaluation_metric_select
+            st.write('Number of true positives in the model: {}'.format(TP))
+            st.write('Number of true negatives in the model: {}'.format(FN))
+            st.write('Number of false positives in the model: {}'.format(FP))
+            st.write('Number of false negatives in the model: {}'.format(FN))
+            if 'Accuracy' in evaluation_metric_select:
+                st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            if 'Sensitivity' in evaluation_metric_select:
+                st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            if 'Specificity' in evaluation_metric_select:
+                st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            if 'Area under the ROC curve' in evaluation_metric_select:
+                st.write('Area under the ROC curve of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+            plot_curve_select = st.selectbox(
+            label='Plot ROC curve',
+            options=['No', 'Yes'],
+            )
+            if plot_curve_select == 'Yes':
+                ROC_Curve.plot()
+                RC = plt.show()
+                st.set_option('deprecation.showPyplotGlobalUse', False)
+                st.pyplot(RC)
+        except NameError:
+            st.write('Please run a model before evaluation.')
+
 
 if (classification_methods_options[4] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[4])
-        lg_model = DecisionTreeClassifier()
+        tree_criterion = st.selectbox(
+            label='Input criterion function',
+            options = ['gini','entropy'],
+            key='tree_criterion'
+        )
+        st.write('You selected the following criterion function to measure quality of split: {}'.format(tree_criterion))
+        
+        tree_min_sample_leaf = st.number_input(
+            label='Enter the number of neighbors for training',
+            min_value=1,
+            max_value=50,
+            value=1,
+            step=1,
+            key='tree_min_sample_leaf'
+        )
+        st.write('You selected the following number of neighbors for training: {}'.format(tree_min_sample_leaf))
+        
+        tree_max_depth = st.number_input(
+            label='Enter the maximum depth of the tree',
+            min_value=5,
+            max_value=100,
+            value=5,
+            step=1,
+            key='tree_max_depth'
+        )
+        st.write('You selected the following leaf size for training: {}'.format(tree_max_depth))
+        knn_params = {
+            'tree_criterion': tree_criterion,
+            'tree_max_depth': tree_max_depth,
+            'tree_min_sample_leaf': tree_min_sample_leaf
+        }
+        lg_model = DecisionTreeClassifier(criterion=tree_criterion, min_samples_leaf=tree_min_sample_leaf, max_depth=tree_max_depth, random_state=0)
         lg_model.fit(X_train, y_train)
         st.write('Decision Tree Model trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
-        evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
-        )
-        st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[4])
-        if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
-        if 'Area under the ROC curve' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
-        )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
+        try:
+            TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[4])
+            evaluation_options = ['Accuracy', 'Sensitivity', 'Specificity','Area under the ROC curve'] 
+            evaluation_metric_select = st.multiselect(
+            label='Select evaluation metric for current model',
+            options=evaluation_options,
+            key='evaluation_select'
+            )
+            st.session_state['evaluation'] = evaluation_metric_select
+            st.write('Number of true positives in the model: {}'.format(TP))
+            st.write('Number of true negatives in the model: {}'.format(FN))
+            st.write('Number of false positives in the model: {}'.format(FP))
+            st.write('Number of false negatives in the model: {}'.format(FN))
+            if 'Accuracy' in evaluation_metric_select:
+                st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            if 'Sensitivity' in evaluation_metric_select:
+                st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            if 'Specificity' in evaluation_metric_select:
+                st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            if 'Area under the ROC curve' in evaluation_metric_select:
+                st.write('Area under the ROC curve of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+            plot_curve_select = st.selectbox(
+            label='Plot ROC curve',
+            options=['No', 'Yes'],
+            )
+            if plot_curve_select == 'Yes':
+                ROC_Curve.plot()
+                RC = plt.show()
+                st.set_option('deprecation.showPyplotGlobalUse', False)
+                st.pyplot(RC)
+        except NameError:
+            st.write('Please run a model before evaluation.')
+
 
 if (classification_methods_options[5] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[5])
-        lg_model = RandomForestClassifier(random_state=0)
+        rtree_criterion = st.selectbox(
+            label='Input criterion function',
+            options = ['gini','entropy'],
+            key='rtree_criterion'
+        )
+        st.write('You selected the following criterion function to measure quality of split: {}'.format(rtree_criterion))
+        
+        rtree_min_sample_leaf = st.number_input(
+            label='Enter the number of neighbors for training',
+            min_value=1,
+            max_value=50,
+            value=1,
+            step=1,
+            key='rtree_min_sample_leaf'
+        )
+        st.write('You selected the following number of neighbors for training: {}'.format(rtree_min_sample_leaf))
+        
+        rtree_max_depth = st.number_input(
+            label='Enter the maximum depth of the tree',
+            min_value=5,
+            max_value=100,
+            value=5,
+            step=1,
+            key='rtree_max_depth'
+        )
+        st.write('You selected the following leaf size for training: {}'.format(rtree_max_depth))
+        knn_params = {
+            'rtree_criterion': rtree_criterion,
+            'rtree_max_depth': rtree_max_depth,
+            'rtree_min_sample_leaf': rtree_min_sample_leaf
+        }
+        lg_model = RandomForestClassifier(criterion=rtree_criterion, min_samples_leaf=rtree_min_sample_leaf, max_depth=rtree_max_depth, random_state=0)
         lg_model.fit(X_train, y_train)
         st.write('Random Forest Model trained')
         y_pred = lg_model.predict(X_test)
         st.markdown('### Evaluate your model')
-        evaluation_options = ['Accuracy', 'Precision', 'Sensitivity', 'Specificity','Misclassification'] 
-        evaluation_metric_select = st.multiselect(
-        label='Select evaluation metric for current model',
-        options=evaluation_options,
-        key='evaluation_select'
+        try:
+            TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[5])
+            evaluation_options = ['Accuracy', 'Sensitivity', 'Specificity','Area under the ROC curve'] 
+            evaluation_metric_select = st.multiselect(
+            label='Select evaluation metric for current model',
+            options=evaluation_options,
+            key='evaluation_select'
+            )
+            st.session_state['evaluation'] = evaluation_metric_select
+            st.write('Number of true positives in the model: {}'.format(TP))
+            st.write('Number of true negatives in the model: {}'.format(FN))
+            st.write('Number of false positives in the model: {}'.format(FP))
+            st.write('Number of false negatives in the model: {}'.format(FN))
+            if 'Accuracy' in evaluation_metric_select:
+                st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            if 'Sensitivity' in evaluation_metric_select:
+                st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            if 'Specificity' in evaluation_metric_select:
+                st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            if 'Area under the ROC curve' in evaluation_metric_select:
+                st.write('Area under the ROC curve of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+            plot_curve_select = st.selectbox(
+            label='Plot ROC curve',
+            options=['No', 'Yes'],
+            )
+            if plot_curve_select == 'Yes':
+                ROC_Curve.plot()
+                RC = plt.show()
+                st.set_option('deprecation.showPyplotGlobalUse', False)
+                st.pyplot(RC)
+        except NameError:
+            st.write('Please run a model before evaluation.')
+
+if (classification_methods_options[6] == classification_model_select):# or classification_methods_options[0] in trained_models):
+        st.markdown('## ' + classification_methods_options[6])
+        lsvm_num_iterations = st.number_input(
+            label='Enter the number of maximum iterations on training data',
+            min_value=1000,
+            max_value=100000,
+            value=1000,
+            step=1000,
+            key='lsvm_num_iterations'
         )
-        st.session_state['evaluation'] = evaluation_metric_select
-        Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[5])
-        if 'Accuracy' in evaluation_metric_select:
-           st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
-        if 'Precision' in evaluation_metric_select:
-           st.write('Precision of the current model is: {}'.format(Metric_data['Precision'])) 
-        if 'Sensitivity' in evaluation_metric_select:
-           st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
-        if 'Specificity' in evaluation_metric_select:
-           st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
-        if 'Misclassification' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Misclassification'])) 
-        if 'Area under the ROC curve' in evaluation_metric_select:
-           st.write('Misclassification of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
-        plot_curve_select = st.selectbox(
-        label='Plot ROC curve',
-        options=['No', 'Yes'],
+        st.write('You set the maximum iterations to: {}'.format(lsvm_num_iterations))
+
+        # learning_rate: Constant that multiplies the regularization term. Ranges from [0 Inf)
+        lsvm_tolerance = st.text_input(
+            label='Input tolerance value',
+            value='0.0001',
+            key='rlr_tolerance'
         )
-        if plot_curve_select == 'Yes':
-           ROC_Curve.plot()
-           RC = plt.show()
-           st.set_option('deprecation.showPyplotGlobalUse', False)
-           st.pyplot(RC)
+        lsvm_tolerance = float(lsvm_tolerance)
+        st.write('You selected the following learning rate: {}'.format(lsvm_tolerance))
+
+        # tolerance: stopping criteria for iterations
+        lsvm_regularization_value = st.text_input(
+            label='Input a regularization value',
+            value='1',
+            key='lsvm_regularization_value'
+        )
+        lsvm_regularization_value = float(lsvm_regularization_value)
+        st.write('You selected the following regularization: {}'.format(lsvm_regularization_value))
+
+        rlr_params = {
+            'lsvm_num_iterations': lsvm_num_iterations,
+            'lsvm_tolerance': lsvm_tolerance,
+            'lsvm_regularization_value': lsvm_regularization_value
+        }
+        if 'clicked' not in st.session_state:
+            st.session_state.clicked = {1:False}
+        def clicked(button):
+            st.session_state.clicked[button] = True
+        st.button('Train Model', on_click=clicked, args=[1])
+        if st.session_state.clicked[1]:
+            lg_model = LinearSVC(dual=False, random_state=0,max_iter=lsvm_num_iterations,tol=lsvm_tolerance,C=lsvm_regularization_value)
+            lg_model.fit(X_train, y_train)
+            st.write('Linear Support Vector Machine trained')
+            y_pred = lg_model.predict(X_test)
+            st.write('Linear Support Vector Machine model ran on test data')
+        st.markdown('### Evaluate your model')
+        try:
+            TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[6])
+            evaluation_options = ['Accuracy', 'Sensitivity', 'Specificity','Area under the ROC curve'] 
+            evaluation_metric_select = st.multiselect(
+            label='Select evaluation metric for current model',
+            options=evaluation_options,
+            key='evaluation_select'
+            )
+            st.session_state['evaluation'] = evaluation_metric_select
+            st.write('Number of true positives in the model: {}'.format(TP))
+            st.write('Number of true negatives in the model: {}'.format(FN))
+            st.write('Number of false positives in the model: {}'.format(FP))
+            st.write('Number of false negatives in the model: {}'.format(FN))
+            if 'Accuracy' in evaluation_metric_select:
+                st.write('Accuracy of the current model is: {}'.format(Metric_data['Accuracy'])) 
+            if 'Sensitivity' in evaluation_metric_select:
+                st.write('Sensitivity of the current model is: {}'.format(Metric_data['Sensitivity'])) 
+            if 'Specificity' in evaluation_metric_select:
+                st.write('Specificity of the current model is: {}'.format(Metric_data['Specificity'])) 
+            if 'Area under the ROC curve' in evaluation_metric_select:
+                st.write('Area under the ROC curve of the current model is: {}'.format(Metric_data['Area under the ROC curve']))
+            plot_curve_select = st.selectbox(
+            label='Plot ROC curve',
+            options=['No', 'Yes'],
+            )
+            if plot_curve_select == 'Yes':
+                ROC_Curve.plot()
+                RC = plt.show()
+                st.set_option('deprecation.showPyplotGlobalUse', False)
+                st.pyplot(RC)
+        except NameError:
+            st.write('Please run a model before evaluation.')
+
