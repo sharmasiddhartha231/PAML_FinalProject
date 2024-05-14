@@ -5,6 +5,7 @@ import os
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
+from PIL import Image
 #############################################
 
 st.markdown('# Explore Results')
@@ -72,10 +73,11 @@ def OddsCalculation(df, input_var,random_state=42):
 
 ###################### FETCH DATASET #######################
 df = None
+current_working_directory = os.getcwd()
 if('data' in st.session_state):
     df = st.session_state['data']
 else:
-    filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
+    filepath=os.path.join(current_working_directory, 'Diabetes_Data_Sub_Strict_Main_String_New.txt')
     df = load_dataset(filepath)
 
 ######################### MAIN BODY #########################
@@ -86,12 +88,91 @@ if df is not None:
     st.session_state['data'] = df
 
     ###################### VISUALIZE DATASET #######################
+    
     st.markdown('### 1. Our results, in a nutshell.')
+    #r1_results_path = os.path.join(current_working_directory, "./Tables/R2_Results.txt")
+    #r1_results = pd.read_csv(r1_results_path, sep='\t')
+    #st.markdown("#### Results from initial modeling.")
+    #st.markdown(""" 
+    #    """)
+    #st.markdown(r1_results.style.hide(axis="index").to_html(), unsafe_allow_html=True)
+    #st.markdown("###### Table 1. Evaluation results from our models trained on a 70:30 split.")
+    #1_cm, r1_roc = st.columns(2)
 
-    ###################### VISUALIZE DATASET #######################
+    #with (r1_cm):
+    #    st.image(Image.open('Images/CM_SGD_R1.png'), caption='Confusion Matrix of Logistic Regression using Stochastic Gradient Descent.')
+    #    st.image(Image.open('Images/CM_RLR_R1.png'), caption='Confusion Matrix of Regularized Logistic Regression.')
+    #    st.image(Image.open('Images/CM_KNN_R1.png'), caption='Confusion Matrix of K Nearest Neighbors.')
+    #    st.image(Image.open('Images/CM_RF_R1.png'), caption='Confusion Matrix of Random Forest Classifier.')
+    #    st.image(Image.open('Images/CM_LSVM_R1.png'), caption='Confusion Matrix of Linear Support Vector Machines.')
+    #with (r1_roc):
+    #    st.image(Image.open('Images/SGD_R1.png'), caption='ROC Curve of Logistic Regression using Stochastic Gradient Descent.')
+    #    st.image(Image.open('Images/RLR_R1.png'), caption='ROC Curve of Regularized Logistic Regression.')
+    #    st.image(Image.open('Images/KNN_R1.png'), caption='ROC Curve of K Nearest Neighbors.')
+    #    st.image(Image.open('Images/RF_R1.png'), caption='ROC Curve of Random Forest Classifier.')
+    #    st.image(Image.open('Images/LSVM_R1.png'), caption='ROC Curve of Linear Support Vector Machines.')
+
+    r2_results_path = os.path.join(current_working_directory, "./Tables/R2_Results.txt")
+    r2_results = pd.read_csv(r2_results_path, sep='\t')
+    st.markdown("##### Results from modeling using a combination of oversampled and undersampled data for prediction.")
+    st.markdown(""" **Table 1** and **Figures 1-5** highlight the various metrics we use to evaluate our models. From Table 1, we can see that all 5 models are fairly accurate and have good specificity. That means they are very good at predicting non diabetic cases. However, the recall is lower than the other two metrics measured. This implies that the models are 50-60% correct at predicting diabetic cases. The AUC measures the ability of our model to distinguish between the two classes we are predicting for, All models have an AUC in the range of 0.70-0.72. This means that the models are 70-72 capable of distinguishing between the two disease states. Among these models, the K Nearest neighbor is the best performing model with the highest recall and AUC. Regularized Logistic Regression and Linear SVMs have the highest accuracy and specificities compared to the other models.
+        """)
+    st.markdown(""" *(For the confusion matrix, top left is the number of true negatives predicted, top right is false positives, bottom left is false negatives and bottom left is true positives.)*
+    """)
+    st.markdown(r2_results.style.hide(axis="index").to_html(), unsafe_allow_html=True)
+    st.markdown("###### Table 1. Evaluation results from our models trained on a 70:30 split using oversampled data from the minority class and undersampled data from the majority class.")
+    r2_cm, r2_roc = st.columns(2)
+
+    with (r2_cm):
+        st.image(Image.open('Images/CM_SGD_R2.png'), caption='Confusion Matrix of Logistic Regression using Stochastic Gradient Descent.')
+        st.image(Image.open('Images/CM_RLR_R2.png'), caption='Confusion Matrix of Regularized Logistic Regression.')
+        st.image(Image.open('Images/CM_KNN_R2.png'), caption='Confusion Matrix of K Nearest Neighbors.')
+        st.image(Image.open('Images/CM_RF_R2.png'), caption='Confusion Matrix of Random Forest Classifier.')
+        st.image(Image.open('Images/CM_LSVM_R2.png'), caption='Confusion Matrix of Linear Support Vector Machines.')
+    with (r2_roc):
+        st.image(Image.open('Images/SGD_R2.png'), caption='ROC Curve of Logistic Regression using Stochastic Gradient Descent.')
+        st.image(Image.open('Images/LR_R2.png'), caption='ROC Curve of Regularized Logistic Regression.')
+        st.image(Image.open('Images/KNN_R2.png'), caption='ROC Curve of K Nearest Neighbors.')
+        st.image(Image.open('Images/RF_R2.png'), caption='ROC Curve of Random Forest Classifier.')
+        st.image(Image.open('Images/LSVM_R2.png'), caption='ROC Curve of Linear Support Vector Machines.')
+    st.markdown("###### Fig 1-5. Confusion Matrices and ROC curves for the various models trained.")    
+    st.markdown("""
+    """)
+    r3_results_path = os.path.join(current_working_directory, "./Tables/R3_Results.txt")
+    r3_results = pd.read_csv(r3_results_path, sep='\t')
+    st.markdown("##### Results from using weighted models for predictions.")
+    st.markdown(""" **Table 2** and **Figures 6-8** highlight the various metrics we use to evaluate our weighted models. From Table 2, we can see that all 3 models less accurate and less specific than their unweighted counterparts and we see that the prediction rate for the non diabetic state decreases while using these weighted models. However, the recall increases significantly and goes uptil 79% for the Linear SVM. This implies that the models are able to predict 4 out of 5 diabetic cases correctly. The AUC of the models also increases uptil 0.77 which means that the models are more capable of distinguishing between the two disease states compared to the previously trained models. Among these models, Regularized Logistic Regression and Linear SVMs are marginally better than the Random Forest classifier with slightly higher recall and AUC.
+        """)
+    st.markdown(r3_results.style.hide(axis="index").to_html(), unsafe_allow_html=True)
+    st.markdown("###### Table 2. Evaluation results from our models trained on a 70:30 split using weighted models.")
+    r3_cm, r3_roc = st.columns(2)
+
+    with (r3_cm):
+        st.image(Image.open('Images/CM_RLR_R3.png'), caption='Confusion Matrix of Regularized Logistic Regression.')
+        st.image(Image.open('Images/CM_RF_R3.png'), caption='Confusion Matrix of Random Forest Classifier.')
+        st.image(Image.open('Images/CM_LSVM_R3.png'), caption='Confusion Matrix of Linear Support Vector Machines.')
+    with (r3_roc):
+        st.image(Image.open('Images/LR_R3.png'), caption='ROC Curve of Regularized Logistic Regression.')
+        st.image(Image.open('Images/RF_R3.png'), caption='ROC Curve of Random Forest Classifier.')
+        st.image(Image.open('Images/LSVM_R3.png'), caption='ROC Curve of Linear Support Vector Machines.')
+    st.markdown("###### Fig 6-8. Confusion Matrices and ROC curves for the various models trained.")    
+    st.markdown(""" 
+        """)
+    st.markdown("""Based on our results, we see that the unweighted models trained using the oversampled datasets are more accurate and specific and thus are good at predicting the non diabetic state while the weighted models trained on the imbalanced dataset are better at predicting diabetes states with a much higher recall. We excluded the results of the Logistic Regression using Gradient Descent since they could not be replicated with randomized splits of the dataset and was very sensitive to the learning rate and number of iterations. We recommend using the other models to make predictions but provide functionality to train the model nonetheless.
+    """)
+    st.markdown("""
+    """)
+        
     st.markdown('### 2. Factors with the highest risk association.')
-
+    factor_file_path = os.path.join(current_working_directory, "./Tables/Main_Factors.txt")
+    factor_data = pd.read_csv(factor_file_path, sep='\t')
+    factor_data = factor_data.fillna('')
+    st.markdown(""" We have highlighted some of the highest associated factors with prevalence of diabetes. These include age, BMI, Cholesterol and Blood Pressure status, prior heart condition history, vaccination status and income range. For further details, please scroll down below to explore each factor individually.
+        """)
+    st.markdown(factor_data.style.hide(axis="index").to_html(), unsafe_allow_html=True)
+    st.markdown("###### Table 3. Factors having highest association with Diabetes prevalence.")
     ###################### VISUALIZE DATASET #######################
+    
     st.markdown('### 3. Association of each factor with diabetes prevalence.')
     st.markdown(""" To see the explanation for each factor, please refer to the **Explore Data** page
     """)
@@ -330,7 +411,7 @@ if df is not None:
         
     if assc_select == 'INCOME3':
         weights = OddsCalculation(df, assc_select)
-        index_val = weights.index[weights['Factor'] == 'Less than 10K'][0]
+        index_val = weights.index[weights['Factor'] == 'Over 200K'][0]
         weights['Odds Ratio'] = weights['Odds Ratio'] - weights['Odds Ratio'].iloc[index_val]
         weights['Odds Ratio'] = np.exp(weights['Odds Ratio'])
         st.markdown("""Income of the respondent.""")

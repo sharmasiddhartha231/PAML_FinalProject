@@ -1,0 +1,4 @@
+Model	Accuracy	Specificity	Recall	AUC
+Regularized Logistic Regression	0.753232724	0.747161944	0.787836232	0.767499088
+Random Forest Classifier	0.76319693	0.76329006	0.762666091	0.762978075
+Linear Support Vector Machine	0.750572378	0.743769544	0.789348601	0.766559073

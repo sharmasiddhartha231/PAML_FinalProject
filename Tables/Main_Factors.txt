@@ -1,0 +1,61 @@
+Factor	Values	Odds Ratio
+Age		
+	18-24 YO	1
+	25-29 YO	1.6016
+	30-34 YO	1.9513
+	35-39 YO	2.9312
+	40-44 YO	4.8082
+	45-49 YO	7.1401
+	50-54 YO	9.4623
+	55-59 YO	12.5699
+	60-64 YO	14.1793
+	65-69 YO	15.5836
+	70-74 YO	18.3138
+	75-79 YO	19.1255
+	Over 80 YO	15.2557
+BMI		
+	Normal weight	1
+	Obese	4.1752
+	Over weight	1.9611
+	Under weight	0.9181
+Did the respondent have kidney disease.		
+	Did not have kidney disease	1
+	Had kidney disease	4.662
+Did the respondent have had a heart attack.		
+	Did not have a heart attack	1
+	Had a heart attack	3.6791
+Did the respondent have coronary heart disease		
+	Did not have coronary heart disease	1
+	Had coronary heart disease	3.6791
+Blood Pressure Status		
+	Borderline high BP	1.3476
+	Did not have high BP	1
+	Had high BP	4.7891
+	Had high BP (Pregnant)	1.2518
+Cholesterol Status		
+	High Cholesterol and take medicine	6.3128
+	High Cholesterol but do not take Medicine	1.6241
+	Low Cholesterol and do not take medicine	1
+	Low Cholesterol but Take medicine	8.288
+Vaccination Status		
+	Both Flu and Pneumonia vaccines	3.2512
+	Flu vaccine only	1.1103
+	Not vaccinated for either	1
+	Pneumonia vaccine only	2.6847
+Alcohol Consumption Frequency		
+	Dont drink (0 days)	1
+	Frequent drinker (7-14 days)	0.2941
+	Occasional drinker (1-7 days)	0.5234
+	Regular drinker (> 15 days)	0.296
+Income		
+	10-15K	6.072
+	100-150K	1.702
+	15-20K	4.9438
+	150-200K	1.3051
+	20-25K	4.4323
+	25-35K	3.7562
+	35-50K	3.1674
+	50-75K	2.5401
+	75-100K	1.9832
+	Less than 10K	5.086
+	Over 200K	1

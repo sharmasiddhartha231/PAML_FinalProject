@@ -2,7 +2,6 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import streamlit as st                  
 import random
-from helper_functions import fetch_dataset, set_pos_neg_reviews
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -14,6 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import LinearSVC
 import pickle
+import os
 import seaborn as sns
 from sklearn import metrics
 from imblearn.under_sampling import RandomUnderSampler
@@ -40,31 +40,6 @@ def load_dataset(filepath):
     return data
 
 def split_dataset_predict(df, number, input_row,sample_opt=1,oversample_val=0.25, undersample_val=0.5,random_state=42):
-    """
-    This function splits the dataset into the training and test sets.
-
-    Input:
-        - X: training features
-        - y: training targets
-        - number: the ratio of test samples
-        - target: article feature name 'rating'
-        - feature_encoding: (string) 'Word Count' or 'TF-IDF' encoding
-        - random_state: determines random number generation for centroid initialization
-    Output:
-        - X_train_sentiment: training features (word encoded)
-        - X_val_sentiment: test/validation features (word encoded)
-        - y_train: training targets
-        - y_val: test/validation targets
-    """
-    X_train = []
-    X_test = []
-    y_train = []
-    y_test = []
-    X_train_main = []
-    X_test_main = []
-    y_train_main = []
-    y_test_main = []
-
     # Add code here
     df = df.drop(df[df.DIABETERES == 'Prediabetes'].index)
     df.DIABETERES[df.DIABETERES == 'No Diabetes'] = 0
@@ -195,7 +170,8 @@ df = None
 if('data' in st.session_state):
     df = st.session_state['data']
 else:
-    filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
+    current_working_directory = os.getcwd()
+    filepath=os.path.join(current_working_directory, 'Diabetes_Data_Sub_Strict_Main_String_New.txt')
     if(filepath):
         df = load_dataset(filepath)
 
@@ -431,43 +407,42 @@ if df is not None:
     #treed = DecisionTreeClassifier(criterion='gini', min_samples_leaf=5, max_depth=10)
     #lsvm = LinearSVC(dual=False, random_state=0,max_iter=1000,tol=0.05)
     ## For training, we used the oversampled/undersampled mix data from the initial broken down 70:30 split
-
+    with open(r"./Models/lr_sgd.pkl", "rb") as input_file:
+            lr_sgd_mod = pickle.load(input_file)
+    with open(r"./Models/rlr.pkl", "rb") as input_file:
+            rlr_mod = pickle.load(input_file)
+    with open(r"./Models/knn.pkl", "rb") as input_file:
+            knn_mod = pickle.load(input_file)
+    with open(r"./Models/rf.pkl", "rb") as input_file:
+            rf_mod = pickle.load(input_file)
+    with open(r"./Models/lsvm.pkl", "rb") as input_file:
+            lsvm_mod = pickle.load(input_file)
+    with open(r"./Models/lsvm_w.pkl", "rb") as input_file:
+            lsvmw_mod = pickle.load(input_file)
+    with open(r"./Models/rf_w.pkl", "rb") as input_file:
+            rfw_mod = pickle.load(input_file)
+    with open(r"./Models/rlr_w.pkl", "rb") as input_file:
+            rlrw_mod = pickle.load(input_file)
+    
     if st.button("Predict Results"):
         X_predict = split_dataset_predict(df, 0.3, input_row,sample_opt=4,oversample_val=0.25, undersample_val=0.5,random_state=42)
-        with open(r"lr_sgd.pkl", "rb") as input_file:
-            ml_model = pickle.load(input_file)
-        lr_sgd = ml_model.predict(X_predict)
+        lr_sgd = lr_sgd_mod.predict(X_predict)
         lr_sgd = lr_sgd[0]
+        rlr = rlr_mod.predict(X_predict)
+        knn = knn_mod.predict(X_predict)
+        rf = rf_mod.predict(X_predict)
+        lsvm = lsvm_mod.predict(X_predict)
+        rlrw = rlrw_mod.predict(X_predict)
+        rfw = rfw_mod.predict(X_predict)
+        lsvmw = lsvmw_mod.predict(X_predict)
+        y_pred_uw = [lr_sgd,rlr,knn,rf,lsvm]
+        y_pred_w = [rlrw,rfw,lsvmw]
+        u1=len([i for j,i in enumerate(y_pred_uw) if i==1])
+        u0=len([i for j,i in enumerate(y_pred_uw) if i==0])
+        w1=len([i for j,i in enumerate(y_pred_w) if i==1])
+        w0=len([i for j,i in enumerate(y_pred_w) if i==0])
 
-        with open(r"rlr.pkl", "rb") as input_file:
-            ml_model = pickle.load(input_file)
-        rlr = ml_model.predict(X_predict)
-
-        with open(r"knn.pkl", "rb") as input_file:
-            ml_model = pickle.load(input_file)
-        knn = ml_model.predict(X_predict)
-
-        with open(r"dtree.pkl", "rb") as input_file:
-            ml_model = pickle.load(input_file)
-        dtree = ml_model.predict(X_predict)
-
-        with open(r"rf.pkl", "rb") as input_file:
-            ml_model = pickle.load(input_file)
-        rf = ml_model.predict(X_predict)
-
-        with open(r"lsvm.pkl", "rb") as input_file:
-            ml_model = pickle.load(input_file)
-        lsvm = ml_model.predict(X_predict)
-
-        y_pred = [lr_sgd,rlr,knn,dtree,rf,lsvm]
-        x=[i for j,i in enumerate(y_pred) if i==1]
-        d1 = len(x)
-        y = [i for j,i in enumerate(y_pred) if i==0]
-        d2 = len(y)
-
-
-    
-        st.markdown('#### {} Models predict you have diabetes while {} models predict that you do not have diabetes:'.format(d1,d2))
+        st.markdown('#### {} Unweighted Models predict you have diabetes while {} models predict that you do not have diabetes:'.format(u1,u0))
 
         if lr_sgd == 0:
             st.write('The Logistic Regression using Stochastic Gradient Descent model predicts that you do not stand at the risk of having Diabetes.')
@@ -484,11 +459,6 @@ if df is not None:
         if knn == 1:
             st.write('The K Nearest Neighbor model predicts you do stand at the risk of having Diabetes.')
 
-        if dtree == 0:
-            st.write('The Decision Tree model predicts that you do not stand at the risk of having Diabetes.')
-        if dtree == 1:
-            st.write('The Decision Tree model predicts you do stand at the risk of having Diabetes.')
-    
         if rf == 0:
             st.write('The Random Forest classifier model predicts that you do not stand at the risk of having Diabetes.')
         if rf == 1:
@@ -498,6 +468,23 @@ if df is not None:
             st.write('The Linear Support Vector Machine model predicts that you do not stand at the risk of having Diabetes.')
         if lsvm == 1:
             st.write('The Linear Support Vector Machine model predicts you do stand at the risk of having Diabetes.')
+        st.markdown("""
+        """)
+        st.markdown('#### {} Weighted Models predict you have diabetes while {} models predict that you do not have diabetes:'.format(w1,w0))
+        if rlrw == 0:
+            st.write('The Regularized Logistic Regression weighted model predicts that you do not stand at the risk of having Diabetes.')
+        if rlrw == 1:
+            st.write('The Regularized Logistic Regression weighted model predicts you do stand at the risk of having Diabetes.')
+
+        if rfw == 0:
+            st.write('The Random Forest classifier weighted model predicts that you do not stand at the risk of having Diabetes.')
+        if rfw == 1:
+            st.write('The Random Forest classifier weighted model predicts you do stand at the risk of having Diabetes.')
+
+        if lsvmw == 0:
+            st.write('The Linear Support Vector Machine weighted model predicts that you do not stand at the risk of having Diabetes.')
+        if lsvmw == 1:
+            st.write('The Linear Support Vector Machine weighted model predicts you do stand at the risk of having Diabetes.')
 
         st.write("Please refer to the **Explore Results** page regarding how well the model works.")
 

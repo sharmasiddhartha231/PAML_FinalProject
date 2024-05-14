@@ -69,7 +69,9 @@ df = None
 if('data' in st.session_state):
     df = st.session_state['data']
 else:
-    filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
+    current_working_directory = os.getcwd()
+    filepath=os.path.join(current_working_directory, 'Diabetes_Data_Sub_Strict_Main_String_New.txt')
+    #filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
     if(filepath):
         df = load_dataset(filepath)
 

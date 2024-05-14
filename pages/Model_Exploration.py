@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 import streamlit as st                  
 import random
 import pickle
-from helper_functions import fetch_dataset, set_pos_neg_reviews
+import os
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -21,6 +21,7 @@ from sklearn.svm import LinearSVC
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 # set seed=10 to produce consistent results
 random.seed(10)
 
@@ -35,7 +36,6 @@ st.markdown("""Welcome to the **Model Exploration** section where you can test t
 - Logistic Regression using Stochastic Gradient Descent
 - Regularized Logistic Regression 
 - K Nearest Neighbors
-- Decision Tree
 - Random Forest Classifier
 - Support Vector Machines
 """)
@@ -53,7 +53,8 @@ def fetch_dataset():
     if 'data' in st.session_state:
         df = st.session_state['data']
     else:
-        filepath = "/Users/siddharthasharma/Desktop/PAML/PAML_FinalProject/Diabetes_Data_Sub_Strict_Main_String_New.txt"
+        current_working_directory = os.getcwd()
+        filepath=os.path.join(current_working_directory, 'Diabetes_Data_Sub_Strict_Main_String_New.txt')
         df = pd.read_csv(filepath, sep='\t')
     if df is not None:
         st.session_state['data'] = df
@@ -95,13 +96,13 @@ def split_dataset(df, number, target, input_var, sample_opt=1,oversample_val=0.2
     if sample_opt == 1:
         X_train = X_train_main
         y_train = y_train_main   
-    if sample_opt == 2:
+    elif sample_opt == 2:
         X_train,y_train = over.fit_resample(X_train_main, y_train_main)
         #X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
-    if sample_opt == 3:
+    elif sample_opt == 3:
         X_train,y_train = under.fit_resample(X_train_main, y_train_main)
         #X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
-    if sample_opt == 4:
+    elif sample_opt == 4:
         X_train,y_train = pipeline.fit_resample(X_train_main, y_train_main)
         #X_train, X_test, y_train, y_test = train_test_split(X_train_main, y_train_main, test_size=number/100, random_state=random_state, stratify=y_train_main)
 
@@ -399,36 +400,39 @@ if df is not None:
     if (classification_methods_options[0] == classification_model_select):# or classification_methods_options[0] in trained_models):
         st.markdown('## ' + classification_methods_options[0])
 
-        lg_col1, lg_col2 = st.columns(2)
+        lg_learning_rate_input = st.text_input(
+            label='Input learning rate 👇',
+            value='0.001',
+            key='lg_learning_rate_textinput'
+        )
+        st.write('You select the following learning rate value(s): {}'.format(lg_learning_rate_input))
 
-        with (lg_col1):
-            lg_learning_rate_input = st.text_input(
-                label='Input learning rate 👇',
-                value='0.001',
-                key='lg_learning_rate_textinput'
-            )
-            st.write('You select the following learning rate value(s): {}'.format(lg_learning_rate_input))
-
-        with (lg_col2):
-            # Maximum iterations to run the LG until convergence
-            lg_num_iterations = st.number_input(
-                label='Enter the number of maximum iterations on training data',
-                min_value=1000,
-                max_value=25000,
-                value=1000,
-                step=100,
-                key='lg_max_iter_numberinput'
-            )
-            st.write('You set the maximum iterations to: {}'.format(lg_num_iterations))
+        # Maximum iterations to run the LG until convergence
+        lg_num_iterations = st.number_input(
+            label='Enter the number of maximum iterations on training data',
+            min_value=1000,
+            max_value=25000,
+            value=1000,
+            step=100,
+            key='lg_max_iter_numberinput'
+        )
+        st.write('You set the maximum iterations to: {}'.format(lg_num_iterations))
 
         lg_params = {
             'num_iterations': lg_num_iterations,
             'learning_rate': [float(val) for val in lg_learning_rate_input.split(',')],
         }
-        lg_model = LogisticRegression_GD(num_iterations=lg_params['num_iterations'], learning_rate=lg_params['learning_rate'][0])
-        lg_model.fit(X_train.to_numpy(), np.ravel(y_train)) 
-        st.write('Logistic Regression Model using Gradient Descent trained')
-        y_pred = lg_model.predict(X_test)
+        if 'clicked' not in st.session_state:
+            st.session_state.clicked = {1:False}
+        def clicked(button):
+            st.session_state.clicked[button] = True
+        st.button('Train Model', on_click=clicked, args=[1])
+        if st.session_state.clicked[1]:
+            lg_model = LogisticRegression_GD(num_iterations=lg_params['num_iterations'], learning_rate=lg_params['learning_rate'][0])
+            lg_model.fit(X_train.to_numpy(), np.ravel(y_train)) 
+            st.write('Logistic Regression Model using Gradient Descent trained')
+            y_pred = lg_model.predict(X_test)
+            st.write('Logistic Regression Model using Gradient Descent tested')
         st.markdown('### Evaluate your model')
         try:
             TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[0])
@@ -501,11 +505,17 @@ if (classification_methods_options[1] in classification_model_select):
             'batch_size': sgd_batch_size,
             'learning_rate': sdg_learning_rate,
         }
-
-        lg_model = LogisticRegression_SGD(num_iterations=sgd_params['num_iterations'], learning_rate=sgd_params['learning_rate'],batch_size=sgd_params['batch_size'])
-        lg_model.fit(X_train.to_numpy(), np.ravel(y_train)) 
-        st.write('Logistic Regression Model using Stochastic Gradient Descent trained')
-        y_pred = lg_model.predict(X_test)
+        if 'clicked' not in st.session_state:
+            st.session_state.clicked = {1:False}
+        def clicked(button):
+            st.session_state.clicked[button] = True
+        st.button('Train Model', on_click=clicked, args=[1])
+        if st.session_state.clicked[1]:
+            lg_model = LogisticRegression_SGD(num_iterations=sgd_params['num_iterations'], learning_rate=sgd_params['learning_rate'],batch_size=sgd_params['batch_size'])
+            lg_model.fit(X_train.to_numpy(), np.ravel(y_train)) 
+            st.write('Logistic Regression Model using Stochastic Gradient Descent trained')
+            y_pred = lg_model.predict(X_test)
+            st.write('Logistic Regression Model using Stochastic Gradient Descent tested')
         st.markdown('### Evaluate your model')
         try:
             TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[1])
@@ -586,10 +596,17 @@ if (classification_methods_options[2] == classification_model_select):# or class
             'solver': rlr_solver,
             'regularization': rlr_regularization_value
         }
-        lg_model = LogisticRegression(max_iter = rlr_num_iterations,solver=rlr_solver,C=rlr_regularization_value, tol=rlr_tolerance, random_state=0)
-        lg_model.fit(X_train, y_train)
-        st.write('Regularized Logistic Regression Model Model trained')
-        y_pred = lg_model.predict(X_test)
+        if 'clicked' not in st.session_state:
+            st.session_state.clicked = {1:False}
+        def clicked(button):
+            st.session_state.clicked[button] = True
+        st.button('Train Model', on_click=clicked, args=[1])
+        if st.session_state.clicked[1]:
+            lg_model = LogisticRegression(max_iter = rlr_num_iterations,solver=rlr_solver,C=rlr_regularization_value, tol=rlr_tolerance, random_state=0)
+            lg_model.fit(X_train, y_train)
+            st.write('Regularized Logistic Regression Model trained')
+            y_pred = lg_model.predict(X_test)
+            st.write('Regularized Logistic Regression Model tested')
         st.markdown('### Evaluate your model')
         try:
             TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[2])
@@ -666,11 +683,17 @@ if (classification_methods_options[3] == classification_model_select):# or class
             'knn_weights': knn_weights,
             'knn_power': knn_power
         }
-        lg_model = KNeighborsClassifier(n_neighbors=knn_neighbor_value, weights = knn_weights, p=knn_power, leaf_size=knn_leaf_size)
-        lg_model.fit(X_train, y_train)
-        st.write('K Nearest Neighbor Model trained')
-        y_pred = lg_model.predict(X_test)
-
+        if 'clicked' not in st.session_state:
+            st.session_state.clicked = {1:False}
+        def clicked(button):
+            st.session_state.clicked[button] = True
+        st.button('Train Model', on_click=clicked, args=[1])
+        if st.session_state.clicked[1]:
+            lg_model = KNeighborsClassifier(n_neighbors=knn_neighbor_value, weights = knn_weights, p=knn_power, leaf_size=knn_leaf_size)
+            lg_model.fit(X_train, y_train)
+            st.write('K Nearest Neighbor Model trained')
+            y_pred = lg_model.predict(X_test)
+            st.write('K Nearest Neighbor Model tested')
         st.markdown('### Evaluate your model')
         try:
             TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[3])
@@ -734,15 +757,22 @@ if (classification_methods_options[4] == classification_model_select):# or class
             key='tree_max_depth'
         )
         st.write('You selected the following leaf size for training: {}'.format(tree_max_depth))
-        knn_params = {
+        tree_params = {
             'tree_criterion': tree_criterion,
             'tree_max_depth': tree_max_depth,
             'tree_min_sample_leaf': tree_min_sample_leaf
         }
-        lg_model = DecisionTreeClassifier(criterion=tree_criterion, min_samples_leaf=tree_min_sample_leaf, max_depth=tree_max_depth, random_state=0)
-        lg_model.fit(X_train, y_train)
-        st.write('Decision Tree Model trained')
-        y_pred = lg_model.predict(X_test)
+        if 'clicked' not in st.session_state:
+            st.session_state.clicked = {1:False}
+        def clicked(button):
+            st.session_state.clicked[button] = True
+        st.button('Train Model', on_click=clicked, args=[1])
+        if st.session_state.clicked[1]:
+            lg_model = DecisionTreeClassifier(criterion=tree_criterion, min_samples_leaf=tree_min_sample_leaf, max_depth=tree_max_depth, random_state=0)
+            lg_model.fit(X_train, y_train)
+            st.write('Decision Tree Model trained')
+            y_pred = lg_model.predict(X_test)
+            st.write('Decision Tree Model tested')
         st.markdown('### Evaluate your model')
         try:
             TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[4])
@@ -806,15 +836,22 @@ if (classification_methods_options[5] == classification_model_select):# or class
             key='rtree_max_depth'
         )
         st.write('You selected the following leaf size for training: {}'.format(rtree_max_depth))
-        knn_params = {
+        rtree_params = {
             'rtree_criterion': rtree_criterion,
             'rtree_max_depth': rtree_max_depth,
             'rtree_min_sample_leaf': rtree_min_sample_leaf
         }
-        lg_model = RandomForestClassifier(criterion=rtree_criterion, min_samples_leaf=rtree_min_sample_leaf, max_depth=rtree_max_depth, random_state=0)
-        lg_model.fit(X_train, y_train)
-        st.write('Random Forest Model trained')
-        y_pred = lg_model.predict(X_test)
+        if 'clicked' not in st.session_state:
+            st.session_state.clicked = {1:False}
+        def clicked(button):
+            st.session_state.clicked[button] = True
+        st.button('Train Model', on_click=clicked, args=[1])
+        if st.session_state.clicked[1]:
+            lg_model = RandomForestClassifier(criterion=rtree_criterion, min_samples_leaf=rtree_min_sample_leaf, max_depth=rtree_max_depth, random_state=0)
+            lg_model.fit(X_train, y_train)
+            st.write('Random Forest Model trained')
+            y_pred = lg_model.predict(X_test)
+            st.write('Random Forest Model tested')
         st.markdown('### Evaluate your model')
         try:
             TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[5])
@@ -894,7 +931,7 @@ if (classification_methods_options[6] == classification_model_select):# or class
             lg_model.fit(X_train, y_train)
             st.write('Linear Support Vector Machine trained')
             y_pred = lg_model.predict(X_test)
-            st.write('Linear Support Vector Machine model ran on test data')
+            st.write('Linear Support Vector Machine tested')
         st.markdown('### Evaluate your model')
         try:
             TN,FP,FN,TP,Metric_data, ROC_Curve = compute_evaluation(y_pred, y_test, classification_methods_options[6])
